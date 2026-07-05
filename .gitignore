@@ -1,0 +1,53 @@
+# ===== macOS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ===== Xcode =====
+# Kullanıcıya özel dosyalar (asla commit edilmez)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Derleme çıktıları
+build/
+DerivedData/
+*.o
+*.hmap
+*.dSYM.zip
+*.dSYM
+
+# ===== Swift Package Manager =====
+.build/
+.swiftpm/
+# NOT: Package.resolved COMMIT EDİLİR (tekrarlanabilir build için) — buraya ekleme!
+
+# ===== İmzalama / Sertifikalar (repo'ya ASLA girmez) =====
+*.p12
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+
+# ===== Gizli bilgiler =====
+.env
+.env.*
+secrets/
+*.secret
+
+# ===== Dağıtım çıktıları =====
+dist/
+*.dmg
+*.pkg
+notarization-log*.json
+
+# ===== Claude Code =====
+# Kişisel/lokal ayarlar commit edilmez; paylaşılan .claude/settings.json EDİLİR
+.claude/settings.local.json
+
+# ===== Editör / araç kalıntıları =====
+*.swp
+*.swo
+.idea/
+.vscode/
