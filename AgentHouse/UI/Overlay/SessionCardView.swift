@@ -29,15 +29,6 @@ struct SessionCardView: View {
                     .lineLimit(1)
             }
 
-            // Maliyet lokal ve yaklaşık hesaplandığı için "~" ile tahmin olarak sunulur (ADR-010).
-            if let usage = session.usage, usage.totalTokens > 0 {
-                Text(usage.compactDisplayText)
-                    .font(.caption2)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
             // Text(_, style: .relative) her ekran karesinde SwiftUI render'ı
             // uyandırdığı için seyrek periyodik tik + formatter kullanılır
             // (her tik kart layout'unu yeniden çalıştırıyor; 10 sn yeterli).
@@ -92,7 +83,8 @@ struct SessionCardView: View {
     }
 }
 
-/// Usage'ın kart üzerindeki kompakt metni. UI katmanına aittir; Core biçimlendirme bilmez.
+/// Usage'ın kompakt metni. Kartta gösterilmez (ADR-013); Faz 8'deki menü bar
+/// popover'ındaki oturum dökümü bu metni kullanacak. UI katmanına aittir.
 extension SessionUsage {
     /// "42K tok · ~$1.80" biçiminde tek satır; maliyet yalnızca anlamlı büyüklükteyse eklenir.
     var compactDisplayText: String {
@@ -153,13 +145,6 @@ extension SessionState {
                 lastActivity: Date().addingTimeInterval(-42),
                 isStale: false,
                 limitResetAt: state == .limit ? Date().addingTimeInterval(2 * 3600) : nil,
-                usage: SessionUsage(
-                    inputTokens: 4_000,
-                    outputTokens: 26_000,
-                    cacheCreationTokens: 2_000,
-                    cacheReadTokens: 10_000,
-                    estimatedCostUSD: 1.8
-                ),
                 startedAt: Date()
             ))
         }

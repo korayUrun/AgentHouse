@@ -107,6 +107,17 @@ kod yok, bakım yok.
 açık). Projenin birincil getirisi portfolyo/görünürlük; gelecekteki paralı özellikler
 (etkileşim, maskot paketleri) bu sürümün üstüne ayrıca konumlanır.
 
+## ADR-013 — Usage kartta değil, menü bar popover'ında
+**Durum:** Kabul edildi (Faz 7 sonrası kurucu kararı).
+**Karar:** Token/maliyet bilgisi overlay kartında GÖSTERİLMEZ. UsageReader veriyi
+toplamaya devam eder; döküm Faz 8'deki menü bar popover'ında sunulur.
+**Gerekçe:** Kartın işi bir bakışta state okutmak; token/dolar sayısı görsel gürültü.
+Kullanıcının asıl istediği "kalan kota" ise lokal olarak güvenilir hesaplanamaz
+(tavan plana/sunucuya bağlı; ADR-010 hesap bağlantısını reddediyor). Yanıltıcı
+tahmin göstermektense hiç göstermemek tercih edildi.
+**Sonuç:** "Resmi limit yüzdeleri" ertelenen fikirler listesinde durmaya devam
+ediyor; ileride hesap bağlantısıyla gelirse kartta "kalan" gösterimi o zaman düşünülür.
+
 ## Ertelenen fikirler (v1.0 sonrası, sırasız)
 - Panelden izin onaylama / Claude'a mesajla yönlendirme (gelecek paralı sürümün çekirdeği)
 - Gemini CLI / Codex CLI adapter'ları (capability protokolüyle)

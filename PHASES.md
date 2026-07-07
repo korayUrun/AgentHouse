@@ -191,7 +191,8 @@ Her fazın sonunda commit at. Claude Code'a verilecek örnek prompt her fazın a
   `DispatchSource` ile izle, SADECE yeni eklenen satırları oku (FileHandle offset),
   her satırı savunmacı decode et (usage alanları: input/output/cache token).
 - Model adına göre yaklaşık maliyet tablosu (sabit, "tahmini ~" etiketiyle gösterilir).
-- Kartta kompakt gösterim: `42K tok · ~$1.80`. Menü bar popover'ında oturum dökümü.
+- Usage kartta gösterilmez (ADR-013); döküm (`42K tok · ~$1.80`) Faz 8'deki menü bar
+  popover'ında sunulur.
 - Rate-limit izi görürse SessionManager'a limit sinyali (Faz 6 ile bağlanır).
 
 **Bitti sayılır:**
