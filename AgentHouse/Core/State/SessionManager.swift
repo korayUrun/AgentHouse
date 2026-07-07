@@ -16,8 +16,21 @@ struct Session: Identifiable, Equatable {
     var lastActivity: Date
     /// 30 dk (varsayılan) event gelmediyse true; yeni event gelince sıfırlanır.
     var isStale: Bool
-    /// Oturum kartının oluşturulduğu an (sıralama için).
+    /// Süregelen working turunun başladığı an (done banner eşiği için); tur bitince temizlenir.
+    var workingSince: Date? = nil
+    /// limit state'indeyken tahmini reset anı; çalışma devam edince temizlenir.
+    var limitResetAt: Date? = nil
+    /// Oturum kartının oluşturulduğu an (sıralama ve limit penceresi tahmini için).
     let startedAt: Date
+}
+
+/// Eşiği aşan bir işin bittiği bilgisi; DoneBanner ve isteğe bağlı sistem bildirimi bunu dinler.
+struct LongTaskCompletion: Identifiable, Equatable {
+    let id = UUID()
+    let sessionId: String
+    let projectName: String
+    /// working'in başından Stop'a kadar geçen süre (sn).
+    let duration: TimeInterval
 }
 
 /// Oturumların tek doğruluk kaynağı: event akışını session_id başına Session'a çevirir,
@@ -26,14 +39,21 @@ final class SessionManager: ObservableObject {
     /// Aktif oturumlar, oluşturulma sırasına göre.
     @Published private(set) var sessions: [Session] = []
 
+    /// Eşiği aşan bir working süresinin ardından iş bittiğinde yayınlanır.
+    let longTaskCompleted = PassthroughSubject<LongTaskCompletion, Never>()
+
     /// Stale saymak için gereken inaktivite süresi (sn).
     static let defaultStaleAfter: TimeInterval = 30 * 60
 
     /// done state'inin idle'a dönmeden önce ekranda kaldığı süre (sn).
     static let defaultDoneToIdleDelay: TimeInterval = 5
 
+    /// Banner/bildirim tetiklemek için gereken minimum working süresi (sn).
+    static let defaultLongTaskThreshold: TimeInterval = 30
+
     private let doneToIdleDelay: TimeInterval
     private let staleAfter: TimeInterval
+    private let longTaskThreshold: TimeInterval
     private let now: () -> Date
     private var pendingDoneWork: [String: DispatchWorkItem] = [:]
     private var staleTimer: Timer?
@@ -43,10 +63,12 @@ final class SessionManager: ObservableObject {
     init(
         doneToIdleDelay: TimeInterval = SessionManager.defaultDoneToIdleDelay,
         staleAfter: TimeInterval = SessionManager.defaultStaleAfter,
+        longTaskThreshold: TimeInterval = SessionManager.defaultLongTaskThreshold,
         now: @escaping () -> Date = Date.init
     ) {
         self.doneToIdleDelay = doneToIdleDelay
         self.staleAfter = staleAfter
+        self.longTaskThreshold = longTaskThreshold
         self.now = now
     }
 
@@ -83,33 +105,79 @@ final class SessionManager: ObservableObject {
         }
 
         let timestamp = now()
+        let isLimitSignal = name == .notification && LimitDetector.isLimitNotification(event.message)
+        var completion: LongTaskCompletion?
+
         if let index = sessions.firstIndex(where: { $0.id == sessionId }) {
             var session = sessions[index]
-            session.state = SessionStateMachine.apply(state: session.state, event: name)
+            let previousState = session.state
+            session.state = SessionStateMachine.apply(state: previousState, event: name, isLimitSignal: isLimitSignal)
             session.lastActivity = timestamp
             session.isStale = false
             if let cwd = event.cwd, !cwd.isEmpty {
                 session.cwd = cwd
                 session.projectName = Self.projectName(fromCwd: cwd)
             }
+            completion = updateTracking(&session, previousState: previousState, timestamp: timestamp)
             sessions[index] = session
         } else {
             // Uygulama oturum ortasında açıldıysa SessionStart kaçırılmış olabilir;
             // kart yine de oluşturulur (gözlem best-effort).
-            sessions.append(Session(
+            var session = Session(
                 id: sessionId,
                 projectName: Self.projectName(fromCwd: event.cwd),
                 cwd: event.cwd,
-                state: SessionStateMachine.apply(state: .idle, event: name),
+                state: SessionStateMachine.apply(state: .idle, event: name, isLimitSignal: isLimitSignal),
                 lastActivity: timestamp,
                 isStale: false,
                 startedAt: timestamp
-            ))
+            )
+            completion = updateTracking(&session, previousState: .idle, timestamp: timestamp)
+            sessions.append(session)
         }
 
         if sessions.first(where: { $0.id == sessionId })?.state == .done {
             scheduleDoneToIdle(for: sessionId)
         }
+        if let completion {
+            longTaskCompleted.send(completion)
+        }
+    }
+
+    /// State geçişine eşlik eden takip alanlarını (workingSince, limitResetAt) günceller;
+    /// eşiği aşan bir iş bittiyse yayınlanacak LongTaskCompletion'ı döndürür.
+    private func updateTracking(
+        _ session: inout Session,
+        previousState: SessionState,
+        timestamp: Date
+    ) -> LongTaskCompletion? {
+        switch session.state {
+        case .working:
+            // attention arası (izin bekleme) turu bölmesin diye workingSince korunur.
+            if session.workingSince == nil {
+                session.workingSince = timestamp
+            }
+            session.limitResetAt = nil
+        case .limit:
+            if previousState != .limit, session.limitResetAt == nil {
+                session.limitResetAt = LimitDetector.estimateReset(windowStart: session.startedAt, now: timestamp)
+            }
+        case .done:
+            defer { session.workingSince = nil }
+            if let since = session.workingSince, timestamp.timeIntervalSince(since) >= longTaskThreshold {
+                return LongTaskCompletion(
+                    sessionId: session.id,
+                    projectName: session.projectName,
+                    duration: timestamp.timeIntervalSince(since)
+                )
+            }
+        case .idle:
+            session.workingSince = nil
+            session.limitResetAt = nil
+        case .attention:
+            break
+        }
+        return nil
     }
 
     /// lastActivity'si eşiği aşan oturumları stale işaretler. Timer ve testler çağırır.

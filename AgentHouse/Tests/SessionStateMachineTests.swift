@@ -35,10 +35,15 @@ final class SessionStateMachineTests: XCTestCase {
         }
     }
 
-    func testStopYieldsDoneFromEveryState() {
-        for state in SessionState.allCases {
+    func testStopYieldsDoneFromEveryStateExceptLimit() {
+        for state in SessionState.allCases where state != .limit {
             XCTAssertEqual(SessionStateMachine.apply(state: state, event: .stop), .done)
         }
+    }
+
+    func testStopWhileLimitedStaysLimit() {
+        // Limitteki oturumun turu limit yüzünden bitmiştir; done (kutlama) gösterilmez.
+        XCTAssertEqual(SessionStateMachine.apply(state: .limit, event: .stop), .limit)
     }
 
     func testSessionEndLeavesStateUntouched() {
@@ -86,5 +91,37 @@ final class SessionStateMachineTests: XCTestCase {
 
     func testToolOnlyTurnWithoutNotification() {
         XCTAssertEqual(run([.userPromptSubmit, .preToolUse, .postToolUse, .preToolUse, .postToolUse, .stop]), .done)
+    }
+
+    // MARK: - Limit sinyali
+
+    func testLimitSignalNotificationYieldsLimitFromEveryState() {
+        for state in SessionState.allCases {
+            XCTAssertEqual(
+                SessionStateMachine.apply(state: state, event: .notification, isLimitSignal: true),
+                .limit
+            )
+        }
+    }
+
+    func testPlainNotificationStillYieldsAttention() {
+        XCTAssertEqual(
+            SessionStateMachine.apply(state: .working, event: .notification, isLimitSignal: false),
+            .attention
+        )
+    }
+
+    func testWorkResumingAfterLimitYieldsWorking() {
+        // Kullanıcı devam edebiliyorsa limit fiilen kalkmıştır.
+        XCTAssertEqual(SessionStateMachine.apply(state: .limit, event: .userPromptSubmit), .working)
+        XCTAssertEqual(SessionStateMachine.apply(state: .limit, event: .preToolUse), .working)
+    }
+
+    func testLimitScenario() {
+        // working sırasında limit bildirimi gelir, ardından Stop; kart limitte kalmalı.
+        var state = run([.sessionStart, .userPromptSubmit, .preToolUse])
+        state = SessionStateMachine.apply(state: state, event: .notification, isLimitSignal: true)
+        XCTAssertEqual(state, .limit)
+        XCTAssertEqual(SessionStateMachine.apply(state: state, event: .stop), .limit)
     }
 }

@@ -6,27 +6,35 @@ final class MenuBarController: NSObject {
     private let overlayPanel: OverlayPanel
     private let togglePanelItem: NSMenuItem
     private let installHooksItem: NSMenuItem
+    private let systemNotificationsItem: NSMenuItem
 
     private let showEventLog: () -> Void
     private let installHooks: () -> Void
     private let uninstallHooks: () -> Void
     private let hooksInstalled: () -> Bool
+    private let systemNotificationsEnabled: () -> Bool
+    private let setSystemNotificationsEnabled: (Bool) -> Void
 
     init(
         overlayPanel: OverlayPanel,
         showEventLog: @escaping () -> Void,
         installHooks: @escaping () -> Void,
         uninstallHooks: @escaping () -> Void,
-        hooksInstalled: @escaping () -> Bool
+        hooksInstalled: @escaping () -> Bool,
+        systemNotificationsEnabled: @escaping () -> Bool,
+        setSystemNotificationsEnabled: @escaping (Bool) -> Void
     ) {
         self.overlayPanel = overlayPanel
         self.showEventLog = showEventLog
         self.installHooks = installHooks
         self.uninstallHooks = uninstallHooks
         self.hooksInstalled = hooksInstalled
+        self.systemNotificationsEnabled = systemNotificationsEnabled
+        self.setSystemNotificationsEnabled = setSystemNotificationsEnabled
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         togglePanelItem = NSMenuItem(title: "Paneli Gizle", action: nil, keyEquivalent: "p")
         installHooksItem = NSMenuItem(title: "Hook'ları Kur", action: nil, keyEquivalent: "")
+        systemNotificationsItem = NSMenuItem(title: "Bitince Sistem Bildirimi", action: nil, keyEquivalent: "")
         super.init()
 
         if let button = statusItem.button {
@@ -72,6 +80,10 @@ final class MenuBarController: NSObject {
         uninstallItem.target = self
         menu.addItem(uninstallItem)
 
+        systemNotificationsItem.target = self
+        systemNotificationsItem.action = #selector(toggleSystemNotifications)
+        menu.addItem(systemNotificationsItem)
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(
@@ -98,11 +110,16 @@ final class MenuBarController: NSObject {
     @objc private func runUninstallHooks() {
         uninstallHooks()
     }
+
+    @objc private func toggleSystemNotifications() {
+        setSystemNotificationsEnabled(!systemNotificationsEnabled())
+    }
 }
 
 extension MenuBarController: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         togglePanelItem.title = overlayPanel.isVisible ? "Paneli Gizle" : "Paneli Göster"
         installHooksItem.state = hooksInstalled() ? .on : .off
+        systemNotificationsItem.state = systemNotificationsEnabled() ? .on : .off
     }
 }

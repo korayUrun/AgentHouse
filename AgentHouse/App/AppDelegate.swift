@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionManager: SessionManager?
     private var eventLogStore: EventLogStore?
     private var eventLogWindowController: EventLogWindowController?
+    private var systemNotifier: SystemNotifier?
     private var cancellables = Set<AnyCancellable>()
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "AppDelegate")
 
@@ -29,6 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         eventLogStore = logStore
         let logWindowController = EventLogWindowController(store: logStore, sessionManager: manager)
         eventLogWindowController = logWindowController
+
+        let notifier = SystemNotifier()
+        systemNotifier = notifier
+        manager.longTaskCompleted
+            .sink { notifier.notifyLongTaskCompleted($0) }
+            .store(in: &cancellables)
 
         let server = EventServer(port: EventServer.configuredPort())
         eventServer = server
@@ -50,7 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showEventLog: { logWindowController.show() },
             installHooks: { [weak self] in self?.installHooks() },
             uninstallHooks: { [weak self] in self?.uninstallHooks() },
-            hooksInstalled: { HookInstaller().isInstalled() }
+            hooksInstalled: { HookInstaller().isInstalled() },
+            systemNotificationsEnabled: { notifier.isEnabled },
+            setSystemNotificationsEnabled: { notifier.setEnabled($0) }
         )
         panel.show()
     }

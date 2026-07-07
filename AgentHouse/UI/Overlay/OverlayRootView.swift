@@ -10,6 +10,12 @@ struct OverlayRootView: View {
     /// yeniden boyutlandırır.
     var onContentSizeChange: (CGSize) -> Void = { _ in }
 
+    /// Ekranda duran done banner'ları, session_id → tamamlama bilgisi.
+    @State private var doneBanners: [String: LongTaskCompletion] = [:]
+
+    /// Banner'ın kendiliğinden toplanmadan önce ekranda kaldığı süre (sn).
+    static let bannerDisplayDuration: TimeInterval = 5
+
     var body: some View {
         content
             .padding(10)
@@ -25,6 +31,7 @@ struct OverlayRootView: View {
                 value: sessionManager.sessions.map(\.id)
             )
             .environment(\.mascotAnimationsPaused, !visibility.isVisible)
+            .onReceive(sessionManager.longTaskCompleted) { showBanner($0) }
     }
 
     @ViewBuilder
@@ -40,9 +47,29 @@ struct OverlayRootView: View {
         } else {
             HStack(alignment: .top, spacing: 10) {
                 ForEach(sessionManager.sessions) { session in
-                    SessionCardView(session: session)
-                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                    VStack(spacing: 6) {
+                        SessionCardView(session: session)
+                        if let banner = doneBanners[session.id] {
+                            DoneBanner(completion: banner)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+                    }
+                    .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
+            }
+        }
+    }
+
+    /// Banner'ı yay efektiyle sarkıtır ve süresi dolunca toplar. Aynı oturumdan yeni bir
+    /// tamamlama gelirse süre baştan başlar (id karşılaştırması eski zamanlayıcıyı etkisiz kılar).
+    private func showBanner(_ completion: LongTaskCompletion) {
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.6)) {
+            doneBanners[completion.sessionId] = completion
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.bannerDisplayDuration) {
+            guard doneBanners[completion.sessionId]?.id == completion.id else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                doneBanners.removeValue(forKey: completion.sessionId)
             }
         }
     }

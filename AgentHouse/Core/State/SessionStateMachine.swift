@@ -5,20 +5,23 @@ import Foundation
 enum SessionStateMachine {
     /// CLAUDE.md'deki hook eşleme tablosunu birebir uygular: verilen event, mevcut state'i
     /// hangi state'e taşır? `sessionEnd` bir geçiş değil oturum silmedir; state'i değiştirmez.
-    static func apply(state: SessionState, event: HookEvent.Name) -> SessionState {
+    /// `isLimitSignal`, Notification içeriğinin limit belirttiğini söyler (LimitDetector karar verir).
+    static func apply(state: SessionState, event: HookEvent.Name, isLimitSignal: Bool = false) -> SessionState {
         switch event {
         case .sessionStart:
             return .idle
         case .userPromptSubmit:
             return .working
         // attention→working senkronizasyonu buradan gelir: terminalden izin onaylanınca
-        // ilk PreToolUse eventi state'i kendiliğinden working'e çeker.
+        // ilk PreToolUse eventi state'i kendiliğinden working'e çeker. Aynı kural limitten
+        // çıkışı da sağlar: kullanıcı devam edebiliyorsa limit fiilen kalkmıştır.
         case .preToolUse, .postToolUse:
             return .working
         case .notification:
-            return .attention
+            return isLimitSignal ? .limit : .attention
         case .stop:
-            return .done
+            // Limitteki oturumun turu limit yüzünden bitmiştir; done (kutlama) gösterilmez.
+            return state == .limit ? .limit : .done
         case .sessionEnd:
             return state
         }
