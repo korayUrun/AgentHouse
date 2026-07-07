@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentHouse — see every Claude Code session at a glance</title>
+<meta name="description" content="A tiny always-on-top macOS overlay that shows every Claude Code session as a little animated house. Observe-only, fully local.">
+<style>
+  :root {
+    --bg: #f7f5f1;
+    --fg: #2b2419;
+    --muted: #6b6154;
+    --card: #ffffff;
+    --accent: #5b56d6;
+    --accent-soft: rgba(91, 86, 214, 0.12);
+    --border: rgba(43, 36, 25, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17151f;
+      --fg: #efeae2;
+      --muted: #a89e90;
+      --card: #201d2b;
+      --accent: #8f8aee;
+      --accent-soft: rgba(143, 138, 238, 0.14);
+      --border: rgba(239, 234, 226, 0.12);
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+
+  header { padding: 88px 0 56px; text-align: center; }
+  .mascot { width: 96px; height: 96px; margin: 0 auto 24px; display: block; }
+  h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; letter-spacing: -0.02em; }
+  .tagline { margin: 16px auto 0; max-width: 560px; font-size: 1.15rem; color: var(--muted); }
+  .cta { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 12px 24px; border-radius: 12px;
+    text-decoration: none; font-weight: 600; font-size: 1rem;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: var(--accent-soft); color: var(--accent); }
+  .note { margin-top: 12px; font-size: 0.85rem; color: var(--muted); }
+
+  .demo {
+    margin: 24px auto 0; max-width: 720px; border-radius: 16px;
+    border: 1px solid var(--border); background: var(--card);
+    padding: 48px 24px; text-align: center; color: var(--muted); font-size: 0.95rem;
+  }
+  .demo img { max-width: 100%; border-radius: 12px; display: block; }
+
+  section { padding: 40px 0; }
+  h2 { font-size: 1.5rem; letter-spacing: -0.01em; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px;
+  }
+  .card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+  .card p { font-size: 0.95rem; color: var(--muted); }
+  .emoji { font-size: 1.6rem; display: block; margin-bottom: 12px; }
+
+  .states { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .state {
+    padding: 6px 14px; border-radius: 999px; font-size: 0.85rem; font-weight: 600;
+    background: var(--accent-soft);
+  }
+  .state.idle { color: #8e8e93; } .state.working { color: var(--accent); }
+  .state.attention { color: #e08600; } .state.done { color: #2e9e52; }
+  .state.limit { color: #8e8e93; }
+
+  pre {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; overflow-x: auto; font-size: 0.83rem; line-height: 1.5;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .trust p { color: var(--muted); margin-bottom: 12px; }
+  .trust strong { color: var(--fg); }
+
+  footer {
+    padding: 48px 0 64px; text-align: center;
+    color: var(--muted); font-size: 0.9rem; border-top: 1px solid var(--border); margin-top: 40px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="wrap">
+  <!-- Maskot: uygulama ikonuyla aynı ev -->
+  <svg class="mascot" viewBox="0 0 1024 1024" role="img" aria-label="AgentHouse mascot">
+    <defs>
+      <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fcf0db"/><stop offset="1" stop-color="#e6cfb0"/>
+      </linearGradient>
+      <linearGradient id="roof" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#948cfa"/><stop offset="1" stop-color="#615acc"/>
+      </linearGradient>
+    </defs>
+    <rect x="272" y="384" width="480" height="360" rx="56" fill="url(#body)"/>
+    <rect x="640" y="234" width="72" height="150" rx="12" fill="#8c614c"/>
+    <circle cx="676" cy="190" r="28" fill="#c9c4bd" opacity="0.8"/>
+    <circle cx="711" cy="140" r="19" fill="#c9c4bd" opacity="0.6"/>
+    <path d="M216 424 L512 244 L808 424 L776 464 L512 304 L248 464 Z" fill="url(#roof)"/>
+    <path d="M248 450 L512 280 L776 450 Z" fill="url(#roof)"/>
+    <ellipse cx="410" cy="524" rx="22" ry="28" fill="#40301f"/>
+    <ellipse cx="614" cy="524" rx="22" ry="28" fill="#40301f"/>
+    <ellipse cx="370" cy="590" rx="26" ry="17" fill="#f29a80" opacity="0.5"/>
+    <ellipse cx="654" cy="590" rx="26" ry="17" fill="#f29a80" opacity="0.5"/>
+    <path d="M463 594 A52 52 0 0 0 561 594" fill="none" stroke="#734d33" stroke-width="16" stroke-linecap="round"/>
+  </svg>
+
+  <h1>Your Claude Code sessions,<br>living on your desktop</h1>
+  <p class="tagline">
+    AgentHouse is a tiny always-on-top macOS overlay that shows every Claude Code
+    session as a little animated house — so you always know who's working,
+    who's waiting for you, and who just finished.
+  </p>
+  <div class="cta">
+    <a class="btn btn-primary" href="#download">Download for macOS</a>
+    <a class="btn btn-secondary" href="#transparency">How it works</a>
+  </div>
+  <p class="note">macOS 14+ · signed &amp; notarized · under 3 MB</p>
+
+  <div class="demo">
+    <!-- Demo GIF gelince: <img src="demo.gif" alt="AgentHouse overlay showing three session cards"> -->
+    demo GIF coming here
+  </div>
+</header>
+
+<section class="wrap">
+  <h2>One glance, five states</h2>
+  <div class="states">
+    <span class="state idle">idle</span>
+    <span class="state working">working</span>
+    <span class="state attention">needs you</span>
+    <span class="state done">done</span>
+    <span class="state limit">at limit</span>
+  </div>
+  <div class="grid" style="margin-top: 20px;">
+    <div class="card">
+      <span class="emoji">🏠</span>
+      <h3>A card per session</h3>
+      <p>Each Claude Code session gets its own house, named after the project. The chimney smokes while it works; a banner drops when a long task finishes.</p>
+    </div>
+    <div class="card">
+      <span class="emoji">🖱️</span>
+      <h3>Click to jump back</h3>
+      <p>Claude is waiting for permission? Click the card and land in the exact terminal that owns the session.</p>
+    </div>
+    <div class="card">
+      <span class="emoji">📊</span>
+      <h3>Local usage estimates</h3>
+      <p>Token counts and rough cost per session, computed by reading transcripts on your disk — never by calling any API.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap trust" id="transparency">
+  <h2>Observe-only, verifiably local</h2>
+  <p><strong>Nothing leaves your machine.</strong> The only networking code in the app is a listener bound to <code>127.0.0.1</code>. No analytics, no telemetry, no update checks. The source is public — check for yourself.</p>
+  <p><strong>Claude Code is never touched.</strong> AgentHouse adds one observe-only hook command to <code>~/.claude/settings.json</code> (your existing settings are merged, backed up first, and fully restored on uninstall):</p>
+  <pre><code>curl -s --max-time 1 -X POST http://127.0.0.1:48756/event \
+  -H 'Content-Type: application/json' -d @- || true</code></pre>
+  <p>It times out after one second and always succeeds, so Claude Code is never blocked — even when AgentHouse isn't running. It returns nothing, so it can never approve, deny, or modify what Claude does.</p>
+  <p><strong>Stateless.</strong> Events live in memory only. The app writes nothing to disk except its own UI preferences.</p>
+</section>
+
+<section class="wrap" id="download">
+  <h2>Get AgentHouse</h2>
+  <p style="color: var(--muted); margin-bottom: 16px;">Free and open source.</p>
+  <div class="cta" style="justify-content: flex-start;">
+    <a class="btn btn-primary" href="#">Download .dmg</a>
+    <a class="btn btn-secondary" href="#">View source on GitHub</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    AgentHouse is an independent open-source project, not affiliated with Anthropic.<br>
+    Built in public — <a href="#">follow the journey</a>.
+  </div>
+</footer>
+
+</body>
+</html>
