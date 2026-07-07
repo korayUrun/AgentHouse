@@ -51,3 +51,6 @@ notarization-log*.json
 *.swo
 .idea/
 .vscode/
+
+# ===== Test kalıntıları =====
+*.profraw
