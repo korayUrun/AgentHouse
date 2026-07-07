@@ -2,8 +2,8 @@ import AppKit
 import Combine
 import os
 
-/// Uygulama yaşam döngüsünü yöneten delegate; overlay paneli, event sunucusunu ve
-/// menü bar denetleyicisini ayağa kaldırır.
+/// Uygulama yaşam döngüsünü yöneten delegate; overlay paneli, event sunucusunu,
+/// menü bar denetleyicisini, ayarlar ve onboarding pencerelerini ayağa kaldırır.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayPanel: OverlayPanel?
     private var menuBarController: MenuBarController?
@@ -11,20 +11,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionManager: SessionManager?
     private var eventLogStore: EventLogStore?
     private var eventLogWindowController: EventLogWindowController?
+    private var settingsWindowController: SettingsWindowController?
+    private var onboardingWindowController: OnboardingWindowController?
     private var systemNotifier: SystemNotifier?
     private var usageReader: UsageReader?
+    private var serverCancellable: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
+    private let terminalFocuser = TerminalFocuser()
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "AppDelegate")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Unit testler bu uygulamayı host olarak başlatır; test sırasında UI ve sunucu kurulmaz.
         guard NSClassFromString("XCTestCase") == nil else { return }
 
-        let manager = SessionManager()
+        let manager = SessionManager(
+            longTaskThreshold: SessionManager.configuredLongTaskThreshold(),
+            frontmostApp: { [terminalFocuser] in terminalFocuser.frontmostApplicationBundleId() }
+        )
         manager.startStaleMonitoring()
         sessionManager = manager
 
-        let panel = OverlayPanel(sessionManager: manager)
+        let panel = OverlayPanel(
+            sessionManager: manager,
+            onSessionActivate: { [terminalFocuser] session in
+                terminalFocuser.focusApplication(bundleId: session.sourceBundleId)
+            }
+        )
         overlayPanel = panel
 
         let logStore = EventLogStore()
@@ -53,36 +65,92 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        let server = EventServer(port: EventServer.configuredPort())
+        startServer(port: EventServer.configuredPort())
+
+        settingsWindowController = SettingsWindowController(actions: makeSettingsActions())
+
+        menuBarController = MenuBarController(
+            overlayPanel: panel,
+            sessionManager: manager,
+            openSettings: { [weak self] in self?.settingsWindowController?.show() }
+        )
+        panel.show()
+
+        onboardingWindowController = OnboardingWindowController { [weak self] in
+            self?.installHooksQuietly()
+        }
+        onboardingWindowController?.showIfNeeded()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        eventServer?.stop()
+    }
+
+    // MARK: - Event sunucusu
+
+    /// Sunucuyu verilen portta başlatır ve event akışını ilgili tüketicilere bağlar.
+    /// Port değişiminde eski sunucu durdurulup aboneliğiyle birlikte değiştirilir.
+    private func startServer(port: UInt16) {
+        eventServer?.stop()
+        let server = EventServer(port: port)
         eventServer = server
-        server.events
+        serverCancellable = server.events
             .receive(on: DispatchQueue.main)
-            .sink { event in
-                logStore.append(event)
-                manager.handle(event)
-                reader.handle(event)
+            .sink { [weak self] event in
+                self?.eventLogStore?.append(event)
+                self?.sessionManager?.handle(event)
+                self?.usageReader?.handle(event)
             }
-            .store(in: &cancellables)
         do {
             try server.start()
         } catch {
             logger.error("EventServer başlatılamadı: \(error.localizedDescription, privacy: .public)")
         }
-
-        menuBarController = MenuBarController(
-            overlayPanel: panel,
-            showEventLog: { logWindowController.show() },
-            installHooks: { [weak self] in self?.installHooks() },
-            uninstallHooks: { [weak self] in self?.uninstallHooks() },
-            hooksInstalled: { HookInstaller().isInstalled() },
-            systemNotificationsEnabled: { notifier.isEnabled },
-            setSystemNotificationsEnabled: { notifier.setEnabled($0) }
-        )
-        panel.show()
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        eventServer?.stop()
+    /// Ayarlardan port değişimi: kaydet, sunucuyu yeni portla yeniden başlat,
+    /// hook'lar kuruluysa komutları yeni portla güncelle.
+    private func applyPort(_ port: UInt16) {
+        UserDefaults.standard.set(Int(port), forKey: EventServer.portDefaultsKey)
+        startServer(port: port)
+
+        let installer = HookInstaller(port: port)
+        if installer.isInstalled() {
+            do {
+                try installer.install()
+                logger.info("Hook komutları yeni portla güncellendi: \(port)")
+            } catch {
+                logger.error("Hook portu güncellenemedi: \(error.localizedDescription, privacy: .public)")
+                showAlert(
+                    title: "Hook'lar güncellenemedi",
+                    message: "Sunucu \(port) portunda ama hook komutları eski portta kaldı: "
+                        + error.localizedDescription,
+                    style: .warning
+                )
+            }
+        }
+    }
+
+    // MARK: - Ayarlar
+
+    private func makeSettingsActions() -> SettingsView.Actions {
+        var actions = SettingsView.Actions()
+        actions.installHooks = { [weak self] in self?.installHooks() }
+        actions.uninstallHooks = { [weak self] in self?.uninstallHooks() }
+        actions.hooksInstalled = { HookInstaller().isInstalled() }
+        actions.applyPort = { [weak self] port in self?.applyPort(port) }
+        actions.currentPort = { EventServer.configuredPort() }
+        actions.resetPanelPosition = { [weak self] in self?.overlayPanel?.resetPosition() }
+        actions.setBannerThreshold = { [weak self] threshold in
+            UserDefaults.standard.set(threshold, forKey: SessionManager.longTaskThresholdDefaultsKey)
+            self?.sessionManager?.setLongTaskThreshold(threshold)
+        }
+        actions.systemNotificationsEnabled = { [weak self] in self?.systemNotifier?.isEnabled ?? false }
+        actions.setSystemNotificationsEnabled = { [weak self] enabled in
+            self?.systemNotifier?.setEnabled(enabled)
+        }
+        actions.openEventLog = { [weak self] in self?.eventLogWindowController?.show() }
+        return actions
     }
 
     // MARK: - Hook kurulumu
@@ -101,6 +169,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch {
             logger.error("Hook kurulumu başarısız: \(error.localizedDescription, privacy: .public)")
             showAlert(title: "Hook kurulumu başarısız", message: error.localizedDescription, style: .warning)
+        }
+    }
+
+    /// Onboarding için alert'siz kurulum; hata mesajı döndürür (nil = başarı).
+    private func installHooksQuietly() -> String? {
+        let installer = HookInstaller(port: EventServer.configuredPort())
+        do {
+            try installer.install()
+            logger.info("Hook'lar kuruldu (onboarding).")
+            return nil
+        } catch {
+            logger.error("Hook kurulumu başarısız: \(error.localizedDescription, privacy: .public)")
+            return error.localizedDescription
         }
     }
 

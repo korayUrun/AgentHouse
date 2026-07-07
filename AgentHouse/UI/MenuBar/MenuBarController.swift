@@ -1,125 +1,53 @@
 import AppKit
+import SwiftUI
 
-/// Menü bar ikonunu ve menüsünü yöneten denetleyici.
+/// Menü bar ikonunu ve tıklanınca açılan popover'ı (oturum özeti + eylemler) yöneten denetleyici.
 final class MenuBarController: NSObject {
     private let statusItem: NSStatusItem
-    private let overlayPanel: OverlayPanel
-    private let togglePanelItem: NSMenuItem
-    private let installHooksItem: NSMenuItem
-    private let systemNotificationsItem: NSMenuItem
-
-    private let showEventLog: () -> Void
-    private let installHooks: () -> Void
-    private let uninstallHooks: () -> Void
-    private let hooksInstalled: () -> Bool
-    private let systemNotificationsEnabled: () -> Bool
-    private let setSystemNotificationsEnabled: (Bool) -> Void
+    private let popover: NSPopover
 
     init(
         overlayPanel: OverlayPanel,
-        showEventLog: @escaping () -> Void,
-        installHooks: @escaping () -> Void,
-        uninstallHooks: @escaping () -> Void,
-        hooksInstalled: @escaping () -> Bool,
-        systemNotificationsEnabled: @escaping () -> Bool,
-        setSystemNotificationsEnabled: @escaping (Bool) -> Void
+        sessionManager: SessionManager,
+        openSettings: @escaping () -> Void
     ) {
-        self.overlayPanel = overlayPanel
-        self.showEventLog = showEventLog
-        self.installHooks = installHooks
-        self.uninstallHooks = uninstallHooks
-        self.hooksInstalled = hooksInstalled
-        self.systemNotificationsEnabled = systemNotificationsEnabled
-        self.setSystemNotificationsEnabled = setSystemNotificationsEnabled
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        togglePanelItem = NSMenuItem(title: "Paneli Gizle", action: nil, keyEquivalent: "p")
-        installHooksItem = NSMenuItem(title: "Hook'ları Kur", action: nil, keyEquivalent: "")
-        systemNotificationsItem = NSMenuItem(title: "Bitince Sistem Bildirimi", action: nil, keyEquivalent: "")
+
+        popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
         super.init()
+
+        popover.contentViewController = NSHostingController(
+            rootView: MenuBarPopoverView(
+                sessionManager: sessionManager,
+                isPanelVisible: { overlayPanel.isVisible },
+                togglePanel: { overlayPanel.toggleVisibility() },
+                openSettings: { [weak self] in
+                    self?.popover.performClose(nil)
+                    openSettings()
+                }
+            )
+        )
 
         if let button = statusItem.button {
             button.image = NSImage(
                 systemSymbolName: "house.fill",
                 accessibilityDescription: "AgentHouse"
             )
+            button.target = self
+            button.action = #selector(togglePopover)
         }
-        statusItem.menu = makeMenu()
     }
 
-    private func makeMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.delegate = self
-
-        togglePanelItem.target = self
-        togglePanelItem.action = #selector(togglePanel)
-        menu.addItem(togglePanelItem)
-
-        // Gizli debug girdisi: menü açıkken Option'a basılınca panel girdisinin
-        // yerinde belirir. Faz 8'de SettingsView'daki gizli "debug log" seçeneğine taşınacak.
-        let eventLogItem = NSMenuItem(
-            title: "Event Log (Debug)",
-            action: #selector(openEventLog),
-            keyEquivalent: "p"
-        )
-        eventLogItem.keyEquivalentModifierMask = [.command, .option]
-        eventLogItem.isAlternate = true
-        eventLogItem.target = self
-        menu.addItem(eventLogItem)
-
-        menu.addItem(.separator())
-
-        installHooksItem.target = self
-        installHooksItem.action = #selector(runInstallHooks)
-        menu.addItem(installHooksItem)
-
-        let uninstallItem = NSMenuItem(
-            title: "Hook'ları Kaldır",
-            action: #selector(runUninstallHooks),
-            keyEquivalent: ""
-        )
-        uninstallItem.target = self
-        menu.addItem(uninstallItem)
-
-        systemNotificationsItem.target = self
-        systemNotificationsItem.action = #selector(toggleSystemNotifications)
-        menu.addItem(systemNotificationsItem)
-
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(
-            title: "AgentHouse'u Kapat",
-            action: #selector(NSApplication.terminate(_:)),
-            keyEquivalent: "q"
-        )
-        menu.addItem(quitItem)
-        return menu
-    }
-
-    @objc private func togglePanel() {
-        overlayPanel.toggleVisibility()
-    }
-
-    @objc private func openEventLog() {
-        showEventLog()
-    }
-
-    @objc private func runInstallHooks() {
-        installHooks()
-    }
-
-    @objc private func runUninstallHooks() {
-        uninstallHooks()
-    }
-
-    @objc private func toggleSystemNotifications() {
-        setSystemNotificationsEnabled(!systemNotificationsEnabled())
-    }
-}
-
-extension MenuBarController: NSMenuDelegate {
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        togglePanelItem.title = overlayPanel.isVisible ? "Paneli Gizle" : "Paneli Göster"
-        installHooksItem.state = hooksInstalled() ? .on : .off
-        systemNotificationsItem.state = systemNotificationsEnabled() ? .on : .off
+    @objc private func togglePopover() {
+        if popover.isShown {
+            popover.performClose(nil)
+        } else if let button = statusItem.button {
+            // LSUIElement uygulamada transient popover'ın dış tıklamayla kapanması
+            // için uygulamanın aktif olması gerekir.
+            NSApp.activate()
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
     }
 }

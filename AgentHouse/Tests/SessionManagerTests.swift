@@ -335,4 +335,58 @@ final class SessionManagerTests: XCTestCase {
         manager.applyLimitSignal(toSession: "hayalet")
         XCTAssertTrue(manager.sessions.isEmpty)
     }
+
+    // MARK: - Kaynak uygulama tespiti (Faz 8)
+
+    private func makeManager(frontmostApp: @escaping () -> String?) -> SessionManager {
+        SessionManager(now: { self.currentDate }, frontmostApp: frontmostApp)
+    }
+
+    func testSessionStartCapturesFrontmostAppAsSource() {
+        let manager = makeManager(frontmostApp: { "com.apple.Terminal" })
+        manager.handle(event("SessionStart"))
+
+        XCTAssertEqual(manager.sessions[0].sourceBundleId, "com.apple.Terminal")
+    }
+
+    func testUserPromptSubmitUpdatesSourceApp() {
+        // Uygulama oturum ortasında açıldıysa SessionStart kaçmıştır; sonraki
+        // prompt'ta kaynak yine de yakalanmalı ve güncel kalmalı.
+        var frontmost: String? = nil
+        let manager = makeManager(frontmostApp: { frontmost })
+        manager.handle(event("SessionStart"))
+        XCTAssertNil(manager.sessions[0].sourceBundleId)
+
+        frontmost = "com.microsoft.VSCode"
+        manager.handle(event("UserPromptSubmit"))
+        XCTAssertEqual(manager.sessions[0].sourceBundleId, "com.microsoft.VSCode")
+    }
+
+    func testToolEventsDoNotOverwriteSourceApp() {
+        // Tool eventleri sırasında kullanıcı başka uygulamada olabilir; kaynak bozulmamalı.
+        var frontmost: String? = "com.apple.Terminal"
+        let manager = makeManager(frontmostApp: { frontmost })
+        manager.handle(event("SessionStart"))
+
+        frontmost = "com.apple.Safari"
+        manager.handle(event("PreToolUse"))
+        manager.handle(event("PostToolUse"))
+        XCTAssertEqual(manager.sessions[0].sourceBundleId, "com.apple.Terminal")
+    }
+
+    // MARK: - Banner eşiği güncelleme (Faz 8)
+
+    func testUpdatedLongTaskThresholdAppliesToNextCompletion() {
+        let manager = makeManager(longTaskThreshold: 30)
+        manager.setLongTaskThreshold(120)
+
+        let completions = collectCompletions(from: manager) {
+            manager.handle(event("SessionStart"))
+            manager.handle(event("UserPromptSubmit"))
+            currentDate = currentDate.addingTimeInterval(60)
+            manager.handle(event("Stop"))
+        }
+
+        XCTAssertTrue(completions.isEmpty)
+    }
 }

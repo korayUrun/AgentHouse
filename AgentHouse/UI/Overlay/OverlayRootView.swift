@@ -9,6 +9,9 @@ struct OverlayRootView: View {
     /// İçeriğin ideal boyutu değiştiğinde çağrılır; OverlayPanel bununla kendini
     /// yeniden boyutlandırır.
     var onContentSizeChange: (CGSize) -> Void = { _ in }
+    /// Karta veya done banner'a tıklanınca çağrılır; kaynak terminali öne getirmek
+    /// için AppDelegate TerminalFocuser'a bağlar.
+    var onSessionActivate: (Session) -> Void = { _ in }
 
     /// Ekranda duran done banner'ları, session_id → tamamlama bilgisi.
     @State private var doneBanners: [String: LongTaskCompletion] = [:]
@@ -49,8 +52,10 @@ struct OverlayRootView: View {
                 ForEach(sessionManager.sessions) { session in
                     VStack(spacing: 6) {
                         SessionCardView(session: session)
+                            .onTapGesture { onSessionActivate(session) }
                         if let banner = doneBanners[session.id] {
                             DoneBanner(completion: banner)
+                                .onTapGesture { onSessionActivate(session) }
                                 .transition(.move(edge: .top).combined(with: .opacity))
                         }
                     }

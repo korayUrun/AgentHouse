@@ -13,7 +13,10 @@ final class OverlayPanel: NSPanel {
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "OverlayPanel")
     private let contentVisibility = OverlayContentVisibility()
 
-    init(sessionManager: SessionManager) {
+    init(
+        sessionManager: SessionManager,
+        onSessionActivate: @escaping (Session) -> Void = { _ in }
+    ) {
         super.init(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -36,10 +39,12 @@ final class OverlayPanel: NSPanel {
         let hostingView = NSHostingView(
             rootView: OverlayRootView(
                 sessionManager: sessionManager,
-                visibility: contentVisibility
-            ) { [weak self] size in
-                self?.resizeToFit(size)
-            }
+                visibility: contentVisibility,
+                onContentSizeChange: { [weak self] size in
+                    self?.resizeToFit(size)
+                },
+                onSessionActivate: onSessionActivate
+            )
         )
         contentView = hostingView
 
@@ -76,6 +81,14 @@ final class OverlayPanel: NSPanel {
     /// Paneli gizler.
     func hide() {
         orderOut(nil)
+    }
+
+    /// Paneli varsayılan köşesine döndürür, yeni pozisyonu kaydeder ve gösterir
+    /// (ayarlardaki "pozisyonu sıfırla" butonu için).
+    func resetPosition() {
+        moveToDefaultPosition()
+        persistPosition()
+        show()
     }
 
     /// Görünürlüğü değiştirir ve yeni görünürlük durumunu döndürür.

@@ -10,6 +10,9 @@ struct Session: Identifiable, Equatable {
     var projectName: String
     /// Oturumun çalışma dizini (payload'da geldiyse).
     var cwd: String?
+    /// Oturumu başlatan uygulamanın bundle id'si (SessionStart/UserPromptSubmit anındaki
+    /// önplan uygulamasından best-effort tespit); karta tıklayınca öne getirilir.
+    var sourceBundleId: String? = nil
     /// Güncel state; geçişler yalnızca SessionStateMachine üzerinden yapılır.
     var state: SessionState
     /// Bu oturum için son event'in alındığı an.
@@ -53,25 +56,44 @@ final class SessionManager: ObservableObject {
     /// Banner/bildirim tetiklemek için gereken minimum working süresi (sn).
     static let defaultLongTaskThreshold: TimeInterval = 30
 
+    /// Done-banner eşiğinin saklandığı UserDefaults anahtarı (yalnızca UI tercihi; kural 2).
+    static let longTaskThresholdDefaultsKey = "doneBannerThresholdSeconds"
+
+    /// Ayarlardaki done-banner eşiğini okur; yoksa veya geçersizse varsayılanı döndürür.
+    static func configuredLongTaskThreshold(defaults: UserDefaults = .standard) -> TimeInterval {
+        let stored = defaults.double(forKey: longTaskThresholdDefaultsKey)
+        return stored > 0 ? stored : defaultLongTaskThreshold
+    }
+
     private let doneToIdleDelay: TimeInterval
     private let staleAfter: TimeInterval
-    private let longTaskThreshold: TimeInterval
+    private var longTaskThreshold: TimeInterval
     private let now: () -> Date
+    private let frontmostApp: () -> String?
     private var pendingDoneWork: [String: DispatchWorkItem] = [:]
     private var staleTimer: Timer?
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "SessionManager")
 
-    /// Saat ve süreler testte sahteleriyle değiştirilebilsin diye init'ten enjekte edilir.
+    /// Saat, süreler ve önplan uygulaması sorgusu testte sahteleriyle değiştirilebilsin
+    /// diye init'ten enjekte edilir.
     init(
         doneToIdleDelay: TimeInterval = SessionManager.defaultDoneToIdleDelay,
         staleAfter: TimeInterval = SessionManager.defaultStaleAfter,
         longTaskThreshold: TimeInterval = SessionManager.defaultLongTaskThreshold,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        frontmostApp: @escaping () -> String? = { nil }
     ) {
         self.doneToIdleDelay = doneToIdleDelay
         self.staleAfter = staleAfter
         self.longTaskThreshold = longTaskThreshold
         self.now = now
+        self.frontmostApp = frontmostApp
+    }
+
+    /// Done-banner eşiğini günceller (ayarlardan değiştirilebilir); sonraki
+    /// tamamlanmalara uygulanır. Ana thread'de çağrılmalı.
+    func setLongTaskThreshold(_ threshold: TimeInterval) {
+        longTaskThreshold = threshold
     }
 
     deinit {
@@ -108,6 +130,11 @@ final class SessionManager: ObservableObject {
 
         let timestamp = now()
         let isLimitSignal = name == .notification && LimitDetector.isLimitNotification(event.message)
+        // Kaynak uygulama, kullanıcının o an içinde olduğu kesin olan anlarda yakalanır;
+        // tool eventlerinde kullanıcı başka uygulamaya geçmiş olabilir.
+        let sourceBundleId = (name == .sessionStart || name == .userPromptSubmit)
+            ? frontmostApp()
+            : nil
         var completion: LongTaskCompletion?
 
         if let index = sessions.firstIndex(where: { $0.id == sessionId }) {
@@ -120,6 +147,9 @@ final class SessionManager: ObservableObject {
                 session.cwd = cwd
                 session.projectName = Self.projectName(fromCwd: cwd)
             }
+            if let sourceBundleId {
+                session.sourceBundleId = sourceBundleId
+            }
             completion = updateTracking(&session, previousState: previousState, timestamp: timestamp)
             sessions[index] = session
         } else {
@@ -129,6 +159,7 @@ final class SessionManager: ObservableObject {
                 id: sessionId,
                 projectName: Self.projectName(fromCwd: event.cwd),
                 cwd: event.cwd,
+                sourceBundleId: sourceBundleId,
                 state: SessionStateMachine.apply(state: .idle, event: name, isLimitSignal: isLimitSignal),
                 lastActivity: timestamp,
                 isStale: false,
