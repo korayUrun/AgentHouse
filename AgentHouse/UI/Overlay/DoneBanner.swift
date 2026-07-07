@@ -15,7 +15,7 @@ struct DoneBanner: View {
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text("İş bitti · \(Self.format(duration: completion.duration))")
+                Text("Finished · \(Self.format(duration: completion.duration))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

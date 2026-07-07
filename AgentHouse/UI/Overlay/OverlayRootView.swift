@@ -40,7 +40,7 @@ struct OverlayRootView: View {
     @ViewBuilder
     private var content: some View {
         if sessionManager.sessions.isEmpty {
-            Text("Oturum bekleniyor…")
+            Text("Waiting for sessions…")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 14)
@@ -73,7 +73,7 @@ struct OverlayRootView: View {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.bannerDisplayDuration) {
             guard doneBanners[completion.sessionId]?.id == completion.id else { return }
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            _ = withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 doneBanners.removeValue(forKey: completion.sessionId)
             }
         }

@@ -16,29 +16,25 @@ struct OnboardingView: View {
                 .font(.system(size: 44))
                 .foregroundStyle(.tint)
 
-            Text("AgentHouse'a hoş geldin")
+            Text("Welcome to AgentHouse")
                 .font(.title2.weight(.semibold))
 
-            Text("Claude Code oturumlarını her zaman önde duran küçük bir panelde izler: "
-                + "hangi proje çalışıyor, hangisi senden onay bekliyor, hangisi bitti.")
+            Text("Watches your Claude Code sessions on a small always-on-top panel: which project is working, which one needs your approval, which one is done.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: 10) {
                 explanationRow(
                     icon: "link",
-                    text: "Kurulum, Claude Code'un hook ayarlarına yalnızca bu Mac içinde "
-                        + "(127.0.0.1) çalışan bildirim komutları ekler."
+                    text: "Installation adds notification commands to Claude Code's hook settings that run only inside this Mac (127.0.0.1)."
                 )
                 explanationRow(
                     icon: "arrow.uturn.backward.circle",
-                    text: "~/.claude/settings.json'daki mevcut ayarlara dokunulmaz; yazmadan "
-                        + "önce yedek alınır. Kaldırma yalnızca AgentHouse girdilerini siler."
+                    text: "Your existing settings in ~/.claude/settings.json are untouched; a backup is taken before writing. Removal deletes only AgentHouse's entries."
                 )
                 explanationRow(
                     icon: "lock.shield",
-                    text: "Hiçbir veri internete gönderilmez veya diske yazılmaz. AgentHouse "
-                        + "kapalıyken Claude Code hiç etkilenmez."
+                    text: "No data is sent to the internet or written to disk. When AgentHouse is closed, Claude Code is not affected at all."
                 )
             }
             .padding(14)
@@ -46,7 +42,7 @@ struct OnboardingView: View {
 
             if installed {
                 Label(
-                    "Kuruldu. Yeni bir Claude oturumu başlattığında kartı panelde göreceksin.",
+                    "Installed. Start a new Claude session and its card will appear on the panel.",
                     systemImage: "checkmark.circle.fill"
                 )
                 .foregroundStyle(.green)
@@ -60,11 +56,11 @@ struct OnboardingView: View {
 
             HStack {
                 if installed {
-                    Button("Bitti") { dismiss() }
+                    Button("Done") { dismiss() }
                         .keyboardShortcut(.defaultAction)
                 } else {
-                    Button("Şimdilik Atla") { dismiss() }
-                    Button("Hook'ları Kur ve Başla") {
+                    Button("Skip for Now") { dismiss() }
+                    Button("Install Hooks & Start") {
                         installError = installHooks()
                         installed = installError == nil
                     }
@@ -73,7 +69,7 @@ struct OnboardingView: View {
             }
             .padding(.top, 4)
 
-            Text("Hook'ları daha sonra Ayarlar'dan da kurup kaldırabilirsin.")
+            Text("You can also install or remove the hooks later from Settings.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
@@ -82,7 +78,7 @@ struct OnboardingView: View {
         .fixedSize()
     }
 
-    private func explanationRow(icon: String, text: String) -> some View {
+    private func explanationRow(icon: String, text: LocalizedStringKey) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
                 .frame(width: 18)

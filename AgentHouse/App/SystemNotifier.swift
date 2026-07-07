@@ -38,7 +38,7 @@ final class SystemNotifier {
         guard isEnabled else { return }
         let content = UNMutableNotificationContent()
         content.title = completion.projectName
-        content.body = "Claude'un işi bitti."
+        content.body = String(localized: "Claude finished its task.")
         let request = UNNotificationRequest(
             identifier: completion.id.uuidString,
             content: content,

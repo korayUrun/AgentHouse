@@ -13,13 +13,13 @@ struct MenuBarPopoverView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("AgentHouse")
+            Text(verbatim: "AgentHouse")
                 .font(.headline)
 
             Divider()
 
             if sessionManager.sessions.isEmpty {
-                Text("Aktif oturum yok")
+                Text("No active sessions")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -35,16 +35,16 @@ struct MenuBarPopoverView: View {
             Divider()
 
             actionButton(
-                panelVisible ? "Paneli Gizle" : "Paneli Göster",
+                panelVisible ? "Hide Panel" : "Show Panel",
                 systemImage: panelVisible ? "eye.slash" : "eye"
             ) {
                 togglePanel()
                 panelVisible = isPanelVisible()
             }
-            actionButton("Ayarlar…", systemImage: "gearshape") {
+            actionButton("Settings…", systemImage: "gearshape") {
                 openSettings()
             }
-            actionButton("AgentHouse'u Kapat", systemImage: "power") {
+            actionButton("Quit AgentHouse", systemImage: "power") {
                 NSApp.terminate(nil)
             }
         }
@@ -84,7 +84,7 @@ struct MenuBarPopoverView: View {
     }
 
     private func actionButton(
-        _ title: String,
+        _ title: LocalizedStringKey,
         systemImage: String,
         action: @escaping () -> Void
     ) -> some View {

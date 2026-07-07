@@ -122,9 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 logger.error("Hook portu güncellenemedi: \(error.localizedDescription, privacy: .public)")
                 showAlert(
-                    title: "Hook'lar güncellenemedi",
-                    message: "Sunucu \(port) portunda ama hook komutları eski portta kaldı: "
-                        + error.localizedDescription,
+                    title: String(localized: "Hooks could not be updated"),
+                    message: String(localized: "The server is now listening on port \(String(port)) but the hook commands still use the old port: \(error.localizedDescription)"),
                     style: .warning
                 )
             }
@@ -161,14 +160,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try installer.install()
             logger.info("Hook'lar kuruldu.")
             showAlert(
-                title: "Hook'lar kuruldu",
-                message: "Claude Code hook'ları eklendi; mevcut ayarların yedeği "
-                    + "settings.json.agenthouse-backup dosyasında. Eventler YENİ başlayan "
-                    + "Claude oturumlarından akmaya başlar."
+                title: String(localized: "Hooks installed"),
+                message: String(localized: "Claude Code hooks were added; a backup of your previous settings is at settings.json.agenthouse-backup. Events start flowing from NEWLY started Claude sessions.")
             )
         } catch {
             logger.error("Hook kurulumu başarısız: \(error.localizedDescription, privacy: .public)")
-            showAlert(title: "Hook kurulumu başarısız", message: error.localizedDescription, style: .warning)
+            showAlert(
+                title: String(localized: "Hook installation failed"),
+                message: error.localizedDescription,
+                style: .warning
+            )
         }
     }
 
@@ -191,12 +192,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try installer.uninstall()
             logger.info("Hook'lar kaldırıldı.")
             showAlert(
-                title: "Hook'lar kaldırıldı",
-                message: "settings.json'dan yalnızca AgentHouse'un eklediği girdiler çıkarıldı."
+                title: String(localized: "Hooks removed"),
+                message: String(localized: "Only the entries AgentHouse added were removed from settings.json.")
             )
         } catch {
             logger.error("Hook kaldırma başarısız: \(error.localizedDescription, privacy: .public)")
-            showAlert(title: "Hook kaldırma başarısız", message: error.localizedDescription, style: .warning)
+            showAlert(
+                title: String(localized: "Hook removal failed"),
+                message: error.localizedDescription,
+                style: .warning
+            )
         }
     }
 

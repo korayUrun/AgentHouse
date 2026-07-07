@@ -58,7 +58,7 @@ final class EventLogWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "AgentHouse — Event Log (Debug)"
+        window.title = String(localized: "AgentHouse — Event Log (Debug)")
         window.isReleasedWhenClosed = false
         window.contentViewController = NSHostingController(
             rootView: EventLogView(store: store, sessionManager: sessionManager)
@@ -80,10 +80,10 @@ struct EventLogView: View {
             Divider()
 
             HStack {
-                Text("\(store.entries.count) event")
+                Text("\(store.entries.count) events")
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Temizle") {
+                Button("Clear") {
                     store.clear()
                 }
             }
@@ -153,7 +153,7 @@ private struct SessionDebugListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(sessions.isEmpty ? "Oturum yok" : "\(sessions.count) oturum")
+            (sessions.isEmpty ? Text("No sessions") : Text("\(sessions.count) sessions"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

@@ -89,6 +89,10 @@ başlangıcından hesapla). Bu tespit best-effort'tur; emin değilsen state'i bo
   logla ve yok say. `fatalError` yasak (yalnızca programlama hatası assert'leri).
 - Loglama: `os.Logger`, subsystem `com.agenthouse.app`. print() bırakma.
 - Test: StateMachine ve UsageReader %100'e yakın unit test kapsamı; UI için gerekmiyor.
+- Lokalizasyon (Faz 8.5+): kullanıcıya görünür HER string `App/Localizable.xcstrings`
+  kataloğundan geçer — temel dil İngilizce, tam Türkçe çeviri. SwiftUI literal'ları
+  otomatik; `String` gereken yerde `String(localized:)`. Yeni anahtar eklerken
+  kataloğa tr çevirisini de ekle.
 
 ## Mühendislik ilkeleri
 

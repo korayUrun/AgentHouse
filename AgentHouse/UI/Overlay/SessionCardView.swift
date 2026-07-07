@@ -22,7 +22,7 @@ struct SessionCardView: View {
 
             // Limit tespiti best-effort olduğundan saat "~" ile tahmin olarak sunulur.
             if session.state == .limit, let resetAt = session.limitResetAt {
-                Text("Sıfırlanma: ~\(Self.timeFormatter.string(from: resetAt))")
+                Text("Resets: ~\(Self.timeFormatter.string(from: resetAt))")
                     .font(.caption2)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
@@ -88,7 +88,7 @@ struct SessionCardView: View {
 extension SessionUsage {
     /// "42K tok · ~$1.80" biçiminde tek satır; maliyet yalnızca anlamlı büyüklükteyse eklenir.
     var compactDisplayText: String {
-        var text = "\(Self.compactTokenText(totalTokens)) tok"
+        var text = String(localized: "\(Self.compactTokenText(totalTokens)) tok")
         if estimatedCostUSD >= 0.01 {
             text += String(format: " · ~$%.2f", estimatedCostUSD)
         }
@@ -110,14 +110,14 @@ extension SessionUsage {
 /// SessionState'in panel üzerindeki görsel dili. UI katmanına aittir; Core bu
 /// eşlemeyi bilmez.
 extension SessionState {
-    /// Kart üzerindeki kısa Türkçe etiket.
+    /// Kart üzerindeki kısa state etiketi (katalogdan yerelleşir).
     var displayLabel: String {
         switch self {
-        case .idle: return "Boşta"
-        case .working: return "Çalışıyor"
-        case .attention: return "Dikkat!"
-        case .done: return "Bitti"
-        case .limit: return "Limitte"
+        case .idle: return String(localized: "Idle")
+        case .working: return String(localized: "Working")
+        case .attention: return String(localized: "Attention!")
+        case .done: return String(localized: "Done")
+        case .limit: return String(localized: "At limit")
         }
     }
 

@@ -12,7 +12,7 @@ struct HookInstaller {
         var errorDescription: String? {
             switch self {
             case .settingsNotJSON:
-                return "settings.json geçerli bir JSON nesnesi değil; dosyaya dokunulmadı. Elle düzeltip yeniden deneyin."
+                return String(localized: "settings.json is not a valid JSON object; the file was left untouched. Fix it manually and try again.")
             }
         }
     }

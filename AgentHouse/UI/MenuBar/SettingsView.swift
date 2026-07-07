@@ -53,8 +53,8 @@ struct SettingsView: View {
     // MARK: - Genel
 
     private var generalSection: some View {
-        Section("Genel") {
-            Toggle("Login'de başlat", isOn: $launchAtLogin)
+        Section("General") {
+            Toggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, enabled in
                     setLaunchAtLogin(enabled)
                 }
@@ -64,7 +64,7 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             }
 
-            Toggle("İş bitince sistem bildirimi", isOn: $notificationsEnabled)
+            Toggle("System notification when a task finishes", isOn: $notificationsEnabled)
                 .onChange(of: notificationsEnabled) { _, enabled in
                     actions.setSystemNotificationsEnabled(enabled)
                 }
@@ -80,7 +80,7 @@ struct SettingsView: View {
             }
             launchAtLoginError = nil
         } catch {
-            launchAtLoginError = "Ayarlanamadı: \(error.localizedDescription)"
+            launchAtLoginError = String(localized: "Could not update: \(error.localizedDescription)")
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }
@@ -89,20 +89,20 @@ struct SettingsView: View {
 
     private var panelSection: some View {
         Section("Panel") {
-            LabeledContent("Pozisyon") {
-                Button("Varsayılana Sıfırla") {
+            LabeledContent("Position") {
+                Button("Reset to Default") {
                     actions.resetPanelPosition()
                 }
             }
 
             VStack(alignment: .leading, spacing: 4) {
                 Stepper(value: $bannerThreshold, in: 10...600, step: 10) {
-                    Text("Bitti bildirimi eşiği: \(Int(bannerThreshold)) sn")
+                    Text("Done banner threshold: \(Int(bannerThreshold)) s")
                 }
                 .onChange(of: bannerThreshold) { _, threshold in
                     actions.setBannerThreshold(threshold)
                 }
-                Text("Bundan kısa süren işler banner/bildirim çıkarmaz.")
+                Text("Tasks shorter than this don't show a banner or notification.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -112,29 +112,27 @@ struct SettingsView: View {
     // MARK: - Hook'lar
 
     private var hooksSection: some View {
-        Section("Claude Code Hook'ları") {
-            LabeledContent("Durum") {
+        Section("Claude Code Hooks") {
+            LabeledContent("Status") {
                 Label(
-                    hooksInstalled ? "Kurulu" : "Kurulu değil",
+                    hooksInstalled ? "Installed" : "Not installed",
                     systemImage: hooksInstalled ? "checkmark.circle.fill" : "circle"
                 )
                 .foregroundStyle(hooksInstalled ? .green : .secondary)
             }
 
             HStack {
-                Button("Hook'ları Kur") {
+                Button("Install Hooks") {
                     actions.installHooks()
                     hooksInstalled = actions.hooksInstalled()
                 }
-                Button("Hook'ları Kaldır") {
+                Button("Remove Hooks") {
                     actions.uninstallHooks()
                     hooksInstalled = actions.hooksInstalled()
                 }
             }
 
-            Text("~/.claude/settings.json'a yalnızca AgentHouse'un event komutları eklenir; "
-                + "mevcut ayarların yedeği settings.json.agenthouse-backup dosyasına alınır. "
-                + "Kaldırma yalnızca AgentHouse girdilerini siler.")
+            Text("Only AgentHouse's event commands are added to ~/.claude/settings.json; a backup of your existing settings is saved as settings.json.agenthouse-backup. Removal deletes only AgentHouse's entries.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -143,15 +141,18 @@ struct SettingsView: View {
     // MARK: - Gelişmiş
 
     private var advancedSection: some View {
-        Section("Gelişmiş") {
+        Section("Advanced") {
             VStack(alignment: .leading, spacing: 4) {
-                LabeledContent("Dinleme portu") {
+                LabeledContent("Listening port") {
                     HStack {
-                        TextField("48756", text: $portText)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 80)
-                            .multilineTextAlignment(.trailing)
-                        Button("Uygula") { applyPort() }
+                        TextField(text: $portText, prompt: Text(verbatim: "48756")) {
+                            Text("Listening port")
+                        }
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                        .multilineTextAlignment(.trailing)
+                        .labelsHidden()
+                        Button("Apply") { applyPort() }
                     }
                 }
                 if let portError {
@@ -159,14 +160,13 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
-                Text("Değişiklik anında uygulanır; kurulu hook'lar yeni portla güncellenir. "
-                    + "Açık Claude oturumları eski portu kullanmaya devam edebilir.")
+                Text("Applied immediately; installed hooks are updated to the new port. Already-open Claude sessions may keep using the old port.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             LabeledContent("Debug") {
-                Button("Event Log'u Aç") {
+                Button("Open Event Log") {
                     actions.openEventLog()
                 }
             }
@@ -175,7 +175,7 @@ struct SettingsView: View {
 
     private func applyPort() {
         guard let port = UInt16(portText), port >= 1024 else {
-            portError = "Port 1024-65535 aralığında bir sayı olmalı."
+            portError = String(localized: "Port must be a number between 1024 and 65535.")
             return
         }
         portError = nil
@@ -200,7 +200,7 @@ final class SettingsWindowController {
             let hosting = NSHostingController(rootView: SettingsView(actions: actions))
             let newWindow = NSWindow(contentViewController: hosting)
             newWindow.styleMask = [.titled, .closable]
-            newWindow.title = "AgentHouse Ayarları"
+            newWindow.title = String(localized: "AgentHouse Settings")
             newWindow.isReleasedWhenClosed = false
             newWindow.center()
             window = newWindow
