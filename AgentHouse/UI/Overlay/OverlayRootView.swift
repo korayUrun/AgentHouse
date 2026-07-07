@@ -4,6 +4,8 @@ import SwiftUI
 /// ve içeriğin ideal boyutunu panele bildirir (panel içeriğe göre boyutlanır).
 struct OverlayRootView: View {
     @ObservedObject var sessionManager: SessionManager
+    /// Panel görünürlüğü; gizliyken maskot animasyonları durdurulur.
+    @ObservedObject var visibility = OverlayContentVisibility()
     /// İçeriğin ideal boyutu değiştiğinde çağrılır; OverlayPanel bununla kendini
     /// yeniden boyutlandırır.
     var onContentSizeChange: (CGSize) -> Void = { _ in }
@@ -22,6 +24,7 @@ struct OverlayRootView: View {
                 .spring(response: 0.35, dampingFraction: 0.8),
                 value: sessionManager.sessions.map(\.id)
             )
+            .environment(\.mascotAnimationsPaused, !visibility.isVisible)
     }
 
     @ViewBuilder

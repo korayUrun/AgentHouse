@@ -7,13 +7,10 @@ struct SessionCardView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            ZStack {
-                if session.state == .attention {
-                    AttentionPulseRing(color: session.state.tint)
-                }
-                PlaceholderMascotView(state: session.state)
-            }
-            .frame(width: 48, height: 48)
+            // attention puls halkası dahil tüm animasyon maskotun kendi içinde
+            // (CPU bütçesi için SwiftUI animasyonu yerine CG çizimi).
+            ActiveMascot(state: session.state)
+                .frame(width: 48, height: 48)
 
             Text(session.projectName)
                 .font(.subheadline.weight(.semibold))
@@ -23,11 +20,19 @@ struct SessionCardView: View {
 
             stateBadge
 
-            Text(session.lastActivity, style: .relative)
+            // Text(_, style: .relative) her ekran karesinde SwiftUI render'ı
+            // uyandırdığı için seyrek periyodik tik + formatter kullanılır
+            // (her tik kart layout'unu yeniden çalıştırıyor; 10 sn yeterli).
+            TimelineView(.periodic(from: .now, by: 10)) { context in
+                Text(Self.relativeFormatter.localizedString(
+                    for: session.lastActivity,
+                    relativeTo: context.date
+                ))
                 .font(.caption2)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            }
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 10)
@@ -44,6 +49,13 @@ struct SessionCardView: View {
         .opacity(session.isStale ? 0.45 : 1)
     }
 
+    /// "42 saniye önce" biçiminde kısa göreli zaman; formatter pahalı, bir kez kurulur.
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
+
     private var stateBadge: some View {
         Text(session.state.displayLabel)
             .font(.caption2.weight(.medium))
@@ -51,24 +63,6 @@ struct SessionCardView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(Capsule().fill(session.state.tint.opacity(0.15)))
-    }
-}
-
-/// attention state'inde maskotun etrafından dışa doğru yayılan puls halkası;
-/// state değişince görünümle birlikte animasyon da kalkar.
-private struct AttentionPulseRing: View {
-    let color: Color
-    @State private var expanded = false
-
-    var body: some View {
-        Circle()
-            .stroke(color.opacity(expanded ? 0 : 0.8), lineWidth: 3)
-            .scaleEffect(expanded ? 1.7 : 1.0)
-            .onAppear {
-                withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) {
-                    expanded = true
-                }
-            }
     }
 }
 

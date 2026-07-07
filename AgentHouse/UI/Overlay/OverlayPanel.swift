@@ -11,6 +11,7 @@ final class OverlayPanel: NSPanel {
     private static let defaultSize = NSSize(width: 320, height: 140)
 
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "OverlayPanel")
+    private let contentVisibility = OverlayContentVisibility()
 
     init(sessionManager: SessionManager) {
         super.init(
@@ -33,7 +34,10 @@ final class OverlayPanel: NSPanel {
         animationBehavior = .none
 
         let hostingView = NSHostingView(
-            rootView: OverlayRootView(sessionManager: sessionManager) { [weak self] size in
+            rootView: OverlayRootView(
+                sessionManager: sessionManager,
+                visibility: contentVisibility
+            ) { [weak self] size in
                 self?.resizeToFit(size)
             }
         )
@@ -45,6 +49,13 @@ final class OverlayPanel: NSPanel {
             self,
             selector: #selector(persistPosition),
             name: NSWindow.didMoveNotification,
+            object: self
+        )
+        // Panel gizlenince/örtülünce maskot animasyonları durdurulur (CPU tasarrufu).
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(occlusionStateChanged),
+            name: NSWindow.didChangeOcclusionStateNotification,
             object: self
         )
     }
@@ -76,6 +87,12 @@ final class OverlayPanel: NSPanel {
             show()
         }
         return isVisible
+    }
+
+    // MARK: - Görünürlük → animasyon durdurma
+
+    @objc private func occlusionStateChanged() {
+        contentVisibility.isVisible = occlusionState.contains(.visible)
     }
 
     // MARK: - İçeriğe göre boyutlanma
@@ -154,4 +171,10 @@ final class OverlayPanel: NSPanel {
         )
         setFrameOrigin(origin)
     }
+}
+
+/// Panel içeriğinin ekranda görünür olup olmadığını SwiftUI tarafına taşıyan model;
+/// OverlayRootView bunu maskot animasyonlarını durdurmak için kullanır.
+final class OverlayContentVisibility: ObservableObject {
+    @Published var isVisible = true
 }
