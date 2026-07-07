@@ -24,15 +24,34 @@ final class EventServer {
         }
     }
 
+    /// Dinleyicinin gözlemlenebilir yaşam döngüsü durumu. NWListener port çakışmasını
+    /// start() anında değil asenkron `.failed` state'iyle bildirir; UI bu yayına abone olur.
+    enum ListenerStatus: Equatable {
+        case idle
+        case ready
+        case failed(reason: String)
+    }
+
     /// Çözümlenen hook eventlerinin yayını; ana kuyrukta teslim edilir.
     var events: AnyPublisher<HookEvent, Never> {
         subject.eraseToAnyPublisher()
+    }
+
+    /// Dinleyici durum yayını; sunucu kuyruğundan yayınlanır (abone `receive(on: .main)` kullanmalı).
+    var status: AnyPublisher<ListenerStatus, Never> {
+        statusSubject.eraseToAnyPublisher()
+    }
+
+    /// Anlık dinleyici durumu (uyanma sonrası sağlık kontrolü için).
+    var currentStatus: ListenerStatus {
+        statusSubject.value
     }
 
     /// Sunucunun bağlanacağı port.
     let port: UInt16
 
     private let subject = PassthroughSubject<HookEvent, Never>()
+    private let statusSubject = CurrentValueSubject<ListenerStatus, Never>(.idle)
     private let queue = DispatchQueue(label: "com.agenthouse.app.eventserver")
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "EventServer")
     private let decoder = JSONDecoder()
@@ -68,8 +87,10 @@ final class EventServer {
             switch state {
             case .ready:
                 self.logger.info("EventServer 127.0.0.1:\(self.port, privacy: .public) dinlemede.")
+                self.statusSubject.send(.ready)
             case .failed(let error):
                 self.logger.error("EventServer başarısız (port çakışması olabilir): \(error.localizedDescription, privacy: .public)")
+                self.statusSubject.send(.failed(reason: error.localizedDescription))
             default:
                 break
             }
@@ -85,6 +106,7 @@ final class EventServer {
     func stop() {
         listener?.cancel()
         listener = nil
+        statusSubject.send(.idle)
         queue.async { [weak self] in
             guard let self else { return }
             self.connections.values.forEach { $0.cancel() }

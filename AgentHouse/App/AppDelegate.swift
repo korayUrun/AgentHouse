@@ -16,6 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var systemNotifier: SystemNotifier?
     private var usageReader: UsageReader?
     private var serverCancellable: AnyCancellable?
+    private var serverStatusCancellable: AnyCancellable?
+    /// Listener düşünce bir kez sessizce yeniden denenir; ikinci hata kullanıcıya gösterilir.
+    private var serverRestartAttempted = false
     private var cancellables = Set<AnyCancellable>()
     private let terminalFocuser = TerminalFocuser()
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "AppDelegate")
@@ -80,10 +83,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.installHooksQuietly()
         }
         onboardingWindowController?.showIfNeeded()
+
+        // Uyku sonrası listener düşmüş olabilir; uyanınca sağlık kontrolü yapılır.
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
         eventServer?.stop()
+    }
+
+    /// Uyanma sonrası listener sağlıklı değilse sessizce yeniden kurulur.
+    @objc private func systemDidWake() {
+        guard let server = eventServer, server.currentStatus != .ready else { return }
+        logger.info("Uyanma sonrası EventServer sağlıklı değil; yeniden başlatılıyor.")
+        serverRestartAttempted = false
+        startServer(port: EventServer.configuredPort())
     }
 
     // MARK: - Event sunucusu
@@ -101,10 +121,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.sessionManager?.handle(event)
                 self?.usageReader?.handle(event)
             }
+        serverStatusCancellable = server.status
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                self?.handleServerStatus(status, port: port)
+            }
         do {
             try server.start()
         } catch {
             logger.error("EventServer başlatılamadı: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Listener durum değişimlerini işler: port çakışması gibi asenkron hatalarda önce
+    /// bir kez sessiz yeniden deneme, tekrarında kullanıcıya uyarı gösterilir.
+    private func handleServerStatus(_ status: EventServer.ListenerStatus, port: UInt16) {
+        switch status {
+        case .ready:
+            serverRestartAttempted = false
+        case .failed(let reason):
+            if serverRestartAttempted {
+                showAlert(
+                    title: String(localized: "Event server could not start"),
+                    message: String(localized: "Port \(String(port)) appears to be in use (\(reason)). Pick a different port in Settings; hook events will not arrive until the server is running."),
+                    style: .warning
+                )
+            } else {
+                serverRestartAttempted = true
+                logger.info("EventServer düştü; 2 sn sonra yeniden denenecek.")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                    guard let self, self.eventServer?.currentStatus != .ready else { return }
+                    self.startServer(port: EventServer.configuredPort())
+                }
+            }
+        case .idle:
+            break
         }
     }
 

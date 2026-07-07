@@ -77,22 +77,22 @@
         }
       }
     },
-    "AgentHouse — Event Log (Debug)" : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AgentHouse — Event Log (Debug)"
-          }
-        }
-      }
-    },
     "AgentHouse Settings" : {
       "localizations" : {
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "AgentHouse Ayarları"
+          }
+        }
+      }
+    },
+    "AgentHouse — Event Log (Debug)" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AgentHouse — Event Log (Debug)"
           }
         }
       }
@@ -213,6 +213,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bitti bildirimi eşiği: %lld sn"
+          }
+        }
+      }
+    },
+    "Event server could not start" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Event sunucusu başlatılamadı"
           }
         }
       }
@@ -457,6 +467,16 @@
         }
       }
     },
+    "Port %@ appears to be in use (%@). Pick a different port in Settings; hook events will not arrive until the server is running." : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Port %1$@ kullanımda görünüyor (%2$@). Ayarlar'dan farklı bir port seçin; sunucu çalışana kadar hook eventleri gelmeyecek."
+          }
+        }
+      }
+    },
     "Port must be a number between 1024 and 65535." : {
       "localizations" : {
         "tr" : {
@@ -513,16 +533,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ayarlar…"
-          }
-        }
-      }
-    },
-    "settings.json is not a valid JSON object; the file was left untouched. Fix it manually and try again." : {
-      "localizations" : {
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "settings.json geçerli bir JSON nesnesi değil; dosyaya dokunulmadı. Elle düzeltip yeniden deneyin."
           }
         }
       }
@@ -643,6 +653,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "~/.claude/settings.json'daki mevcut ayarlara dokunulmaz; yazmadan önce yedek alınır. Kaldırma yalnızca AgentHouse girdilerini siler."
+          }
+        }
+      }
+    },
+    "settings.json is not a valid JSON object; the file was left untouched. Fix it manually and try again." : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "settings.json geçerli bir JSON nesnesi değil; dosyaya dokunulmadı. Elle düzeltip yeniden deneyin."
           }
         }
       }

@@ -63,6 +63,13 @@ final class OverlayPanel: NSPanel {
             name: NSWindow.didChangeOcclusionStateNotification,
             object: self
         )
+        // Ekran söküldü/çözünürlük değişti: panel görünmez kaldıysa varsayılana dön.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenParametersChanged),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
     }
 
     deinit {
@@ -108,6 +115,16 @@ final class OverlayPanel: NSPanel {
         contentVisibility.isVisible = occlusionState.contains(.visible)
     }
 
+    @objc private func screenParametersChanged() {
+        let intersectsAnyScreen = NSScreen.screens.contains {
+            $0.visibleFrame.intersects(frame)
+        }
+        guard !intersectsAnyScreen else { return }
+        logger.info("Ekran düzeni değişti; panel görünmez kaldı, varsayılana dönülüyor.")
+        moveToDefaultPosition()
+        persistPosition()
+    }
+
     // MARK: - İçeriğe göre boyutlanma
 
     /// Paneli, üst-sol köşesi sabit kalacak şekilde içeriğin ideal boyutuna getirir.
@@ -119,12 +136,24 @@ final class OverlayPanel: NSPanel {
                 || abs(current.height - contentSize.height) > 0.5
         else { return }
 
-        let newFrame = NSRect(
+        var newFrame = NSRect(
             x: current.origin.x,
             y: current.maxY - contentSize.height,
             width: contentSize.width,
             height: contentSize.height
         )
+        // Panel içerikle büyürken ekran kenarından taşmasın (özellikle sağ kenara
+        // demirliyken çok oturum eklendiğinde).
+        if let visible = (screen ?? NSScreen.main)?.visibleFrame {
+            newFrame.origin.x = max(
+                visible.minX,
+                min(newFrame.origin.x, visible.maxX - newFrame.width)
+            )
+            newFrame.origin.y = max(
+                visible.minY,
+                min(newFrame.origin.y, visible.maxY - newFrame.height)
+            )
+        }
         setFrame(newFrame, display: true)
     }
 

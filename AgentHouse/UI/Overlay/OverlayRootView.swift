@@ -19,6 +19,10 @@ struct OverlayRootView: View {
     /// Banner'ın kendiliğinden toplanmadan önce ekranda kaldığı süre (sn).
     static let bannerDisplayDuration: TimeInterval = 5
 
+    /// Bir satırdaki en fazla kart sayısı; fazlası alt satıra sarar ki panel
+    /// çok oturumda ekran genişliğini aşmasın.
+    static let maxCardsPerRow = 5
+
     var body: some View {
         content
             .padding(10)
@@ -48,20 +52,32 @@ struct OverlayRootView: View {
                 .background(Capsule().fill(.ultraThinMaterial))
                 .transition(.scale(scale: 0.9).combined(with: .opacity))
         } else {
-            HStack(alignment: .top, spacing: 10) {
-                ForEach(sessionManager.sessions) { session in
-                    VStack(spacing: 6) {
-                        SessionCardView(session: session)
-                            .onTapGesture { onSessionActivate(session) }
-                        if let banner = doneBanners[session.id] {
-                            DoneBanner(completion: banner)
-                                .onTapGesture { onSessionActivate(session) }
-                                .transition(.move(edge: .top).combined(with: .opacity))
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(sessionRows, id: \.first?.id) { row in
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(row) { session in
+                            VStack(spacing: 6) {
+                                SessionCardView(session: session)
+                                    .onTapGesture { onSessionActivate(session) }
+                                if let banner = doneBanners[session.id] {
+                                    DoneBanner(completion: banner)
+                                        .onTapGesture { onSessionActivate(session) }
+                                        .transition(.move(edge: .top).combined(with: .opacity))
+                                }
+                            }
+                            .transition(.scale(scale: 0.8).combined(with: .opacity))
                         }
                     }
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
             }
+        }
+    }
+
+    /// Oturumları satır başına en fazla `maxCardsPerRow` kart olacak şekilde böler.
+    private var sessionRows: [[Session]] {
+        let sessions = sessionManager.sessions
+        return stride(from: 0, to: sessions.count, by: Self.maxCardsPerRow).map {
+            Array(sessions[$0..<min($0 + Self.maxCardsPerRow, sessions.count)])
         }
     }
 
