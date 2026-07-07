@@ -228,6 +228,24 @@ Her fazın sonunda commit at. Claude Code'a verilecek örnek prompt her fazın a
 
 ---
 
+## Faz 8.5 — Dil desteği (1-2 gün)
+
+**Hedef:** Uygulamanın sistem diline göre İngilizce/Türkçe konuşması
+(lansman kitlesi İngilizce; Faz 9'dan önce bitmeli).
+
+**İşler:**
+- Xcode String Catalog (`Localizable.xcstrings`): temel dil İngilizce, Türkçe tam çeviri.
+- UI'daki tüm sabit metinler kataloğa taşınır (kart etiketleri, menü, ayarlar,
+  onboarding, banner, hook kur/kaldır uyarıları).
+- Tarih/sayı gösterimleri zaten formatter'larla — locale'i otomatik izler, elle çeviri yok.
+- Kural: bu fazdan sonra eklenen her kullanıcıya görünür string katalogdan geçer.
+
+**Bitti sayılır:**
+- [ ] Sistem dili İngilizce'yken tüm UI İngilizce, Türkçe'yken Türkçe (ikisi de gözle tarandı).
+- [ ] Katalogda eksik anahtar uyarısı yok (Xcode build'de missing localization warning'i temiz).
+
+---
+
 ## Faz 9 — Cila, paketleme, lansman (1 hafta)
 
 **Hedef:** Yabancı birinin indirdiğinde sorunsuz kullandığı, imzalı ürün.
