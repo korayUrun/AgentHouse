@@ -308,6 +308,13 @@ struct MascotRenderer {
         // Roket alevi: dış turuncu, iç sarı.
         static let flameOuter = CGColor(red: 1.0, green: 0.55, blue: 0.20, alpha: 0.95)
         static let flameInner = CGColor(red: 1.0, green: 0.86, blue: 0.38, alpha: 0.95)
+        // Gülen yüz: sıcak sarı-krem tonları, pembe yanak, mavi ter damlası.
+        static let smileyTop = CGColor(red: 1.0, green: 0.95, blue: 0.74, alpha: 1)
+        static let smileyBottom = CGColor(red: 0.95, green: 0.80, blue: 0.52, alpha: 1)
+        static let smileyTopMuted = CGColor(red: 0.90, green: 0.88, blue: 0.82, alpha: 1)
+        static let smileyBottomMuted = CGColor(red: 0.78, green: 0.74, blue: 0.66, alpha: 1)
+        static let cheek = CGColor(red: 0.96, green: 0.60, blue: 0.50, alpha: 0.45)
+        static let sweat = CGColor(red: 0.40, green: 0.65, blue: 0.95, alpha: 0.9)
         // Özgürlük Heykeli (pixel art): bakır yeşili tonları.
         static let statueLight = CGColor(red: 0.64, green: 0.85, blue: 0.73, alpha: 1)
         static let statueMid = CGColor(red: 0.45, green: 0.72, blue: 0.60, alpha: 1)
@@ -342,6 +349,8 @@ struct MascotRenderer {
         static let bodyMuted = make([Palette.bodyTopMuted, Palette.bodyBottomMuted])
         static let car = make([Palette.carTop, Palette.carBottom])
         static let carMuted = make([Palette.carTopMuted, Palette.carBottomMuted])
+        static let smiley = make([Palette.smileyTop, Palette.smileyBottom])
+        static let smileyMuted = make([Palette.smileyTopMuted, Palette.smileyBottomMuted])
         static let roofHighlight = make([CGColor(gray: 1, alpha: 0.30), CGColor(gray: 1, alpha: 0)])
         static let shadow = make([CGColor(gray: 0, alpha: 0.22), CGColor(gray: 0, alpha: 0)])
         static let roof: [SessionState: CGGradient] = Dictionary(
@@ -491,6 +500,70 @@ struct MascotRenderer {
             drawRaceCar(context, u, state: state)
         case .statueOfLiberty:
             drawStatueOfLiberty(context, u, state: state)
+        case .smiley:
+            drawSmiley(context, u, state: state)
+        }
+    }
+
+    /// Gülen yüz: sarı-krem top gövde, pembe yanaklar, tepede state-tint mini bere.
+    /// Gözler/ağız ortak yüz sisteminden gelir (bu karakterde 1.5x ölçekle).
+    private static func drawSmiley(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+        let face = CGRect(x: 10.5 * u, y: 15 * u, width: 27 * u, height: 26.5 * u)
+
+        let gradient = state == .limit ? Gradients.smileyMuted : Gradients.smiley
+        if let gradient {
+            context.saveGState()
+            context.addEllipse(in: face)
+            context.clip()
+            context.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: face.midX, y: face.minY),
+                end: CGPoint(x: face.midX, y: face.maxY),
+                options: []
+            )
+            // Sol üstten vuran yumuşak ışık.
+            if let highlight = Gradients.roofHighlight {
+                context.drawLinearGradient(
+                    highlight,
+                    start: CGPoint(x: face.midX, y: face.minY),
+                    end: CGPoint(x: face.midX, y: face.midY),
+                    options: []
+                )
+            }
+            context.restoreGState()
+        }
+        context.addEllipse(in: face)
+        context.setStrokeColor(Palette.outline)
+        context.setLineWidth(0.8 * u)
+        context.strokePath()
+
+        // Yanaklar.
+        context.setFillColor(Palette.cheek)
+        context.fillEllipse(in: CGRect(x: 12.5 * u, y: 31.5 * u, width: 5.5 * u, height: 3.4 * u))
+        context.fillEllipse(in: CGRect(x: 30 * u, y: 31.5 * u, width: 5.5 * u, height: 3.4 * u))
+
+        // Mini bere: state renk dili buradan okunur (evdeki çatının karşılığı).
+        if let roofGradient = Gradients.roof[state] {
+            let cap = CGMutablePath()
+            cap.move(to: CGPoint(x: 17.5 * u, y: 16.5 * u))
+            cap.addQuadCurve(
+                to: CGPoint(x: 30.5 * u, y: 16.5 * u),
+                control: CGPoint(x: 24 * u, y: 10.5 * u)
+            )
+            cap.closeSubpath()
+            context.saveGState()
+            context.addPath(cap)
+            context.clip()
+            context.drawLinearGradient(
+                roofGradient,
+                start: CGPoint(x: 24 * u, y: 10.5 * u),
+                end: CGPoint(x: 24 * u, y: 16.5 * u),
+                options: []
+            )
+            context.restoreGState()
+            // Ponpon.
+            context.setFillColor(CGColor(gray: 1, alpha: 0.9))
+            context.fillEllipse(in: CGRect(x: 22.7 * u, y: 9.3 * u, width: 2.6 * u, height: 2.6 * u))
         }
     }
 
@@ -866,13 +939,24 @@ struct MascotRenderer {
         context.strokePath()
     }
 
+    /// Yüz ölçeği: smiley'de kimlik iri yüzden gelir; diğer karakterlerde 1.
+    private var faceScale: CGFloat {
+        character == .smiley ? 1.5 : 1
+    }
+
     private func drawEyes(_ context: CGContext, _ u: CGFloat) {
+        let scale = faceScale
         let openness = max(pose.eyeOpenness, 0.08)
-        let eyeHeight = 4.6 * u * openness
+        let eyeHeight = 4.6 * u * scale * openness
         context.setFillColor(Palette.eye)
         for centerX in [19.0, 29.0] {
             let x = centerX * u + pose.eyeLookX * 1.5 * u
-            let rect = CGRect(x: x - 2.3 * u, y: 29 * u - eyeHeight / 2, width: 4.6 * u, height: eyeHeight)
+            let rect = CGRect(
+                x: x - 2.3 * u * scale,
+                y: 29 * u - eyeHeight / 2,
+                width: 4.6 * u * scale,
+                height: eyeHeight
+            )
             context.fillEllipse(in: rect)
         }
         if pose.eyeOpenness > 0.3 {
@@ -881,10 +965,10 @@ struct MascotRenderer {
             for centerX in [19.0, 29.0] {
                 let x = centerX * u + pose.eyeLookX * 1.5 * u
                 let highlight = CGRect(
-                    x: x - 1.6 * u,
-                    y: 29 * u - 1.6 * u * openness,
-                    width: 1.4 * u,
-                    height: 1.4 * u
+                    x: x - 1.6 * u * scale,
+                    y: 29 * u - 1.6 * u * scale * openness,
+                    width: 1.4 * u * scale,
+                    height: 1.4 * u * scale
                 )
                 context.fillEllipse(in: highlight)
             }
@@ -892,11 +976,12 @@ struct MascotRenderer {
     }
 
     private func drawMouth(_ context: CGContext, _ u: CGFloat) {
+        let scale = faceScale
         let center = CGPoint(x: 24 * u, y: 35.5 * u)
         switch state {
         case .done, .idle:
-            let width: CGFloat = state == .done ? 8 * u : 5 * u
-            let depth: CGFloat = state == .done ? 4 * u : 2.5 * u
+            let width: CGFloat = (state == .done ? 8 : 5) * u * scale
+            let depth: CGFloat = (state == .done ? 4 : 2.5) * u * scale
             let smile = CGMutablePath()
             smile.move(to: CGPoint(x: center.x - width / 2, y: center.y))
             smile.addQuadCurve(
@@ -933,7 +1018,31 @@ struct MascotRenderer {
         case .rocket: drawRocketFlame(context, u)
         case .raceCar: drawExhaust(context, u)
         case .statueOfLiberty: drawTorchSparkles(context, u)
+        case .smiley: drawSweatDrop(context, u)
         }
+    }
+
+    /// working (gülen yüz): şakaktan süzülüp kaybolan emoji-dili ter damlası.
+    private func drawSweatDrop(_ context: CGContext, _ u: CGFloat) {
+        let phase = (time / 1.6).truncatingRemainder(dividingBy: 1)
+        let alpha = phase < 0.2 ? phase / 0.2 : 1 - (phase - 0.2) / 0.8
+        let center = CGPoint(x: 36.5 * u, y: (20 + phase * 7) * u)
+        let width = 3.2 * u
+        let height = 4.4 * u
+        // Damla: üstte sivri, altta yuvarlak.
+        let drop = CGMutablePath()
+        drop.move(to: CGPoint(x: center.x, y: center.y - height / 2))
+        drop.addQuadCurve(
+            to: CGPoint(x: center.x, y: center.y + height / 2),
+            control: CGPoint(x: center.x + width, y: center.y + height * 0.55)
+        )
+        drop.addQuadCurve(
+            to: CGPoint(x: center.x, y: center.y - height / 2),
+            control: CGPoint(x: center.x - width, y: center.y + height * 0.55)
+        )
+        context.setFillColor(Palette.sweat.copy(alpha: alpha * 0.9) ?? Palette.sweat)
+        context.addPath(drop)
+        context.fillPath()
     }
 
     /// working (heykel): meşale çevresinde yanıp sönen piksel kıvılcımlar
@@ -1065,6 +1174,7 @@ struct MascotRenderer {
             case .raceCar: return CGPoint(x: 36, y: 10)
             // Meşale sağ üstte; "?" sol tarafta belirir.
             case .statueOfLiberty: return CGPoint(x: 8, y: 10)
+            case .smiley: return CGPoint(x: 37, y: 12)
             }
         }()
         let bob = sin(time * 2 * .pi / 2.0)
@@ -1097,6 +1207,7 @@ struct MascotRenderer {
             case .raceCar: return (CGPoint(x: 35, y: 13), 11)
             // Sağ üst meşalenin olduğu yer; zZz sol taraftan süzülür.
             case .statueOfLiberty: return (CGPoint(x: 6, y: 14), 9)
+            case .smiley: return (CGPoint(x: 36, y: 15), 11)
             }
         }()
         for index in 0..<3 {

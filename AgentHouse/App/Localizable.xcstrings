@@ -621,6 +621,16 @@
         }
       }
     },
+    "Smiley" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gülen Yüz"
+          }
+        }
+      }
+    },
     "Statue of Liberty" : {
       "localizations" : {
         "tr" : {
