@@ -125,3 +125,7 @@ ediyor; ileride hesap bağlantısıyla gelirse kartta "kalan" gösterimi o zaman
 - Resmi limit yüzdeleri (Keychain'de kullanıcı kimliğiyle)
 - Activity timeline, akıllı bildirim kuralları
 - Maskot etkileşimi: panel/kart sallanınca maskotun "çıldırma" animasyonu oynaması
+- Ayarlar'dan uygulama içi dil seçimi (Sistem/EN/TR — `AppleLanguages` + yeniden
+  başlatma). v1.0'da gerek görülmedi: macOS, Sistem Ayarları → Dil ve Bölge →
+  Uygulamalar'dan uygulamaya özel dil seçimini zaten native sunuyor; README'de
+  bu yol anlatılacak.
