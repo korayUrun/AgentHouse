@@ -8,6 +8,8 @@ enum SessionState: String, Equatable, CaseIterable {
     case working
     /// Kullanıcıdan izin/girdi bekliyor.
     case attention
+    /// Claude, AskUserQuestion ile kullanıcıya soru sordu; cevap bekliyor (ADR-015).
+    case questioning
     /// İş yeni bitti; kısa süre sonra idle'a döner.
     case done
     /// Rate limit'e takıldı (tespit best-effort, Faz 6/7'de bağlanır).

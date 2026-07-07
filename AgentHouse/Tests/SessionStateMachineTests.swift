@@ -29,10 +29,51 @@ final class SessionStateMachineTests: XCTestCase {
         }
     }
 
-    func testNotificationYieldsAttentionFromEveryState() {
-        for state in SessionState.allCases {
+    func testNotificationYieldsAttentionFromEveryStateExceptQuestioning() {
+        for state in SessionState.allCases where state != .questioning {
             XCTAssertEqual(SessionStateMachine.apply(state: state, event: .notification), .attention)
         }
+    }
+
+    // MARK: - Questioning (ADR-015)
+
+    func testQuestionSignalYieldsQuestioningFromEveryState() {
+        for state in SessionState.allCases {
+            XCTAssertEqual(
+                SessionStateMachine.apply(state: state, event: .preToolUse, isQuestionSignal: true),
+                .questioning
+            )
+        }
+    }
+
+    func testPlainNotificationWhileQuestioningKeepsQuestioning() {
+        // Soru zaten "girdi bekliyor"un daha spesifik hali; bekleme hatırlatması düşürmez.
+        XCTAssertEqual(
+            SessionStateMachine.apply(state: .questioning, event: .notification),
+            .questioning
+        )
+    }
+
+    func testLimitNotificationWhileQuestioningYieldsLimit() {
+        XCTAssertEqual(
+            SessionStateMachine.apply(state: .questioning, event: .notification, isLimitSignal: true),
+            .limit
+        )
+    }
+
+    func testAnsweredQuestionReturnsToWorking() {
+        // Kullanıcı cevaplayınca PostToolUse gelir → working.
+        XCTAssertEqual(SessionStateMachine.apply(state: .questioning, event: .postToolUse), .working)
+    }
+
+    func testQuestionScenario() {
+        // prompt → tool → soru → cevap → stop
+        var state = run([.sessionStart, .userPromptSubmit, .preToolUse, .postToolUse])
+        state = SessionStateMachine.apply(state: state, event: .preToolUse, isQuestionSignal: true)
+        XCTAssertEqual(state, .questioning)
+        state = SessionStateMachine.apply(state: state, event: .postToolUse)
+        XCTAssertEqual(state, .working)
+        XCTAssertEqual(SessionStateMachine.apply(state: state, event: .stop), .done)
     }
 
     func testStopYieldsDoneFromEveryStateExceptLimit() {

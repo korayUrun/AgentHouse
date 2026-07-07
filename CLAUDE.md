@@ -74,7 +74,7 @@ AgentHouse/
 |---|---|
 | SessionStart | Yeni kart (idle). Payload'daki cwd'den proje adı türet. |
 | UserPromptSubmit | working |
-| PreToolUse / PostToolUse | working (lastActivity güncelle) |
+| PreToolUse / PostToolUse | working (lastActivity güncelle). İstisna (ADR-015): PreToolUse `tool_name == "AskUserQuestion"` ise questioning; cevapla gelen PostToolUse working'e döndürür. |
 | Notification | attention (izin veya input bekliyor) |
 | Stop | done → 5 sn sonra idle |
 | SessionEnd | kartı kaldır |

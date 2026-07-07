@@ -6,7 +6,13 @@ enum SessionStateMachine {
     /// CLAUDE.md'deki hook eşleme tablosunu birebir uygular: verilen event, mevcut state'i
     /// hangi state'e taşır? `sessionEnd` bir geçiş değil oturum silmedir; state'i değiştirmez.
     /// `isLimitSignal`, Notification içeriğinin limit belirttiğini söyler (LimitDetector karar verir).
-    static func apply(state: SessionState, event: HookEvent.Name, isLimitSignal: Bool = false) -> SessionState {
+    /// `isQuestionSignal`, PreToolUse'un AskUserQuestion tool'una ait olduğunu söyler (ADR-015).
+    static func apply(
+        state: SessionState,
+        event: HookEvent.Name,
+        isLimitSignal: Bool = false,
+        isQuestionSignal: Bool = false
+    ) -> SessionState {
         switch event {
         case .sessionStart:
             return .idle
@@ -15,10 +21,15 @@ enum SessionStateMachine {
         // attention→working senkronizasyonu buradan gelir: terminalden izin onaylanınca
         // ilk PreToolUse eventi state'i kendiliğinden working'e çeker. Aynı kural limitten
         // çıkışı da sağlar: kullanıcı devam edebiliyorsa limit fiilen kalkmıştır.
-        case .preToolUse, .postToolUse:
+        case .preToolUse:
+            return isQuestionSignal ? .questioning : .working
+        case .postToolUse:
             return .working
         case .notification:
-            return isLimitSignal ? .limit : .attention
+            if isLimitSignal { return .limit }
+            // Sorudayken gelen sıradan Notification (ör. bekleme hatırlatması) daha az
+            // spesifik bilgidir; questioning korunur (ADR-015).
+            return state == .questioning ? .questioning : .attention
         case .stop:
             // Limitteki oturumun turu limit yüzünden bitmiştir; done (kutlama) gösterilmez.
             return state == .limit ? .limit : .done

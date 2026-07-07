@@ -130,6 +130,9 @@ final class SessionManager: ObservableObject {
 
         let timestamp = now()
         let isLimitSignal = name == .notification && LimitDetector.isLimitNotification(event.message)
+        // ADR-015: Claude'un kullanıcıya soru sorması; tool adı sinyali metin
+        // ayrıştırmadan güvenilirdir.
+        let isQuestionSignal = name == .preToolUse && event.toolName == "AskUserQuestion"
         // Kaynak uygulama, kullanıcının o an içinde olduğu kesin olan anlarda yakalanır;
         // tool eventlerinde kullanıcı başka uygulamaya geçmiş olabilir.
         let sourceBundleId = (name == .sessionStart || name == .userPromptSubmit)
@@ -140,7 +143,12 @@ final class SessionManager: ObservableObject {
         if let index = sessions.firstIndex(where: { $0.id == sessionId }) {
             var session = sessions[index]
             let previousState = session.state
-            session.state = SessionStateMachine.apply(state: previousState, event: name, isLimitSignal: isLimitSignal)
+            session.state = SessionStateMachine.apply(
+                state: previousState,
+                event: name,
+                isLimitSignal: isLimitSignal,
+                isQuestionSignal: isQuestionSignal
+            )
             session.lastActivity = timestamp
             session.isStale = false
             if let cwd = event.cwd, !cwd.isEmpty {
@@ -160,7 +168,12 @@ final class SessionManager: ObservableObject {
                 projectName: Self.projectName(fromCwd: event.cwd),
                 cwd: event.cwd,
                 sourceBundleId: sourceBundleId,
-                state: SessionStateMachine.apply(state: .idle, event: name, isLimitSignal: isLimitSignal),
+                state: SessionStateMachine.apply(
+                    state: .idle,
+                    event: name,
+                    isLimitSignal: isLimitSignal,
+                    isQuestionSignal: isQuestionSignal
+                ),
                 lastActivity: timestamp,
                 isStale: false,
                 startedAt: timestamp
@@ -207,7 +220,8 @@ final class SessionManager: ObservableObject {
         case .idle:
             session.workingSince = nil
             session.limitResetAt = nil
-        case .attention:
+        case .attention, .questioning:
+            // Bekleme araları (izin/soru) turu bölmesin diye workingSince korunur.
             break
         }
         return nil

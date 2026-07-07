@@ -182,6 +182,7 @@ private struct SessionDebugListView: View {
         case .idle: return .gray
         case .working: return .blue
         case .attention: return .orange
+        case .questioning: return .teal
         case .done: return .green
         case .limit: return .purple
         }

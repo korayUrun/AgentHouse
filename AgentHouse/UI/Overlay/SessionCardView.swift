@@ -136,18 +136,20 @@ extension SessionState {
         case .idle: return String(localized: "Idle")
         case .working: return String(localized: "Working")
         case .attention: return String(localized: "Attention!")
+        case .questioning: return String(localized: "Question")
         case .done: return String(localized: "Done")
         case .limit: return String(localized: "At limit")
         }
     }
 
     /// State renk dili: idle nötr, working mavi/mor, attention amber,
-    /// done yeşil, limit gri/uyku.
+    /// questioning camgöbeği, done yeşil, limit gri/uyku.
     var tint: Color {
         switch self {
         case .idle: return .gray
         case .working: return .indigo
         case .attention: return .orange
+        case .questioning: return .teal
         case .done: return .green
         case .limit: return .gray
         }

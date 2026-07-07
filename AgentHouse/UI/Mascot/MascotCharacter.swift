@@ -6,6 +6,9 @@ enum MascotCharacter: String, CaseIterable, Identifiable {
     case house
     case lighthouse
     case rocket
+    // Jenerik yarış arabası; bilinçli olarak hiçbir markanın/karakterin
+    // ayırt edici öğesini taşımaz (telif).
+    case raceCar
 
     /// Yeni projelerin başladığı varsayılan karakter.
     static let `default` = MascotCharacter.house
@@ -18,6 +21,7 @@ enum MascotCharacter: String, CaseIterable, Identifiable {
         case .house: return String(localized: "House")
         case .lighthouse: return String(localized: "Lighthouse")
         case .rocket: return String(localized: "Rocket")
+        case .raceCar: return String(localized: "Race Car")
         }
     }
 }

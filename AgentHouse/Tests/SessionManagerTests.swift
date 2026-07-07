@@ -23,14 +23,38 @@ final class SessionManagerTests: XCTestCase {
         _ name: String,
         session: String? = "s1",
         cwd: String? = nil,
-        message: String? = nil
+        message: String? = nil,
+        toolName: String? = nil
     ) -> HookEvent {
         var fields: [String: Any] = ["hook_event_name": name]
         fields["session_id"] = session
         fields["cwd"] = cwd
         fields["message"] = message
+        fields["tool_name"] = toolName
         let data = try! JSONSerialization.data(withJSONObject: fields)
         return try! JSONDecoder().decode(HookEvent.self, from: data)
+    }
+
+    // MARK: - Questioning sinyali (ADR-015)
+
+    func testAskUserQuestionToolYieldsQuestioningState() {
+        let manager = makeManager()
+        manager.handle(event("UserPromptSubmit"))
+        manager.handle(event("PreToolUse", toolName: "AskUserQuestion"))
+
+        XCTAssertEqual(manager.sessions.first?.state, .questioning)
+
+        // Cevap gelince (PostToolUse) working'e döner; tur bölünmemiştir.
+        manager.handle(event("PostToolUse", toolName: "AskUserQuestion"))
+        XCTAssertEqual(manager.sessions.first?.state, .working)
+        XCTAssertNotNil(manager.sessions.first?.workingSince)
+    }
+
+    func testOtherToolsDoNotYieldQuestioning() {
+        let manager = makeManager()
+        manager.handle(event("PreToolUse", toolName: "Bash"))
+
+        XCTAssertEqual(manager.sessions.first?.state, .working)
     }
 
     // MARK: - Oturum oluşturma ve proje adı

@@ -144,3 +144,17 @@ gelecek konumlanma) için zemin hazırlar.
 **Sonuç:** UserDefaults'ta yalnızca UI tercihi saklanır (kural 2 ile uyumlu:
 proje yolu → karakter id sözlüğü). Rive/ikinci parti karakter paketleri ertelenen
 fikirler listesinde durmaya devam ediyor.
+
+## ADR-015 — Questioning state (6. oturum durumu)
+**Durum:** Kabul edildi (Faz 9 içinde kurucu kararı).
+**Karar:** State modeline `questioning` eklendi: Claude, AskUserQuestion tool'uyla
+kullanıcıya soru sorduğunda kart "Question" durumuna geçer (camgöbeği tint, maskotta
+kafa eğme + "?" balonu). Sinyal: `PreToolUse` eventinde `tool_name == "AskUserQuestion"`.
+Sorudayken gelen sıradan Notification state'i attention'a düşürmez (soru zaten daha
+spesifik bir "girdi bekliyor" bilgisidir); limit Notification'ı yine limit'e taşır.
+Çıkış diğer state'lerle aynıdır: sonraki tool/prompt eventi working'e çeker.
+**Gerekçe:** attention "izin VEYA girdi" ikisini birden taşıyordu; soru sorma, panelin
+asıl değer önerisi olan "hangi oturum benden ne bekliyor?" sorusunun en sık cevabı.
+Tool adı sinyali, Notification metni ayrıştırmaya (kırılgan, dile bağlı) gerek
+bırakmaz. Tespit best-effort'tur: hook AskUserQuestion için tetiklenmezse davranış
+bugünkü gibi kalır (Notification → attention), hiçbir şey bozulmaz.

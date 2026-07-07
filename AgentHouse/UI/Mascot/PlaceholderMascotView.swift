@@ -43,6 +43,8 @@ struct MascotPose {
     var isSmoking = false
     /// limit'te zZz döngüsü aktif mi.
     var isSleeping = false
+    /// questioning'de "?" balonu aktif mi (ADR-015).
+    var isQuestioning = false
 
     init(state: SessionState, time t: TimeInterval, timeSinceStateChange dt: TimeInterval) {
         switch state {
@@ -67,6 +69,14 @@ struct MascotPose {
             jumpHeight = 0.16 * hop
             squash = 0.94 + 0.14 * hop
             tilt = .pi / 45 * sin(t * 2 * .pi / 1.2)
+
+        case .questioning:
+            // Meraklı bekleyiş: yana eğik kafa, iri gözlerle bakınma, yavaş nefes.
+            tilt = .pi / 30 * sin(t * 2 * .pi / 2.4)
+            squash = 1 + 0.02 * sin(t * 2 * .pi / 2.8)
+            eyeOpenness = 1.1
+            eyeLookX = sin(t * 2 * .pi / 3.5) * 0.9
+            isQuestioning = true
 
         case .done:
             // Tek seferlik kutlama: ~1.5 sn coşkulu zıplama + konfeti, sonra sakin nefes.
@@ -203,7 +213,7 @@ private final class MascotCanvasNSView: NSView, CALayerDelegate {
     /// Sakin state'lerde kare hızı yarıya düşer (15 fps); 48 px için yeterli.
     var frameDivisor: Int {
         switch state {
-        case .idle, .limit: return 2
+        case .idle, .limit, .questioning: return 2
         case .working, .attention, .done: return 1
         }
     }
@@ -298,6 +308,13 @@ struct MascotRenderer {
         // Roket alevi: dış turuncu, iç sarı.
         static let flameOuter = CGColor(red: 1.0, green: 0.55, blue: 0.20, alpha: 0.95)
         static let flameInner = CGColor(red: 1.0, green: 0.86, blue: 0.38, alpha: 0.95)
+        // Yarış arabası: kırmızı gövde, koyu lastik, açık cam.
+        static let carTop = CGColor(red: 0.93, green: 0.33, blue: 0.28, alpha: 1)
+        static let carBottom = CGColor(red: 0.74, green: 0.18, blue: 0.16, alpha: 1)
+        static let carTopMuted = CGColor(red: 0.80, green: 0.62, blue: 0.60, alpha: 1)
+        static let carBottomMuted = CGColor(red: 0.66, green: 0.52, blue: 0.50, alpha: 1)
+        static let tire = CGColor(red: 0.22, green: 0.20, blue: 0.20, alpha: 1)
+        static let glass = CGColor(red: 0.78, green: 0.89, blue: 0.95, alpha: 1)
         static let confetti: [CGColor] = [
             CGColor(red: 0.30, green: 0.78, blue: 0.47, alpha: 1),
             CGColor(red: 0.98, green: 0.82, blue: 0.25, alpha: 1),
@@ -316,6 +333,8 @@ struct MascotRenderer {
     private enum Gradients {
         static let body = make([Palette.bodyTop, Palette.bodyBottom])
         static let bodyMuted = make([Palette.bodyTopMuted, Palette.bodyBottomMuted])
+        static let car = make([Palette.carTop, Palette.carBottom])
+        static let carMuted = make([Palette.carTopMuted, Palette.carBottomMuted])
         static let roofHighlight = make([CGColor(gray: 1, alpha: 0.30), CGColor(gray: 1, alpha: 0)])
         static let shadow = make([CGColor(gray: 0, alpha: 0.22), CGColor(gray: 0, alpha: 0)])
         static let roof: [SessionState: CGGradient] = Dictionary(
@@ -424,6 +443,7 @@ struct MascotRenderer {
 
         if pose.isSmoking { drawWorkingEffect(context, u) }
         if pose.isSleeping { drawSleepZs(context, u) }
+        if pose.isQuestioning { drawQuestionMark(context, u) }
         if let body = Sprites.body[Sprites.Key(character: character, state: state)] {
             blit(body, in: CGRect(x: 0, y: 0, width: 48 * u, height: 48 * u), context: context)
         } else {
@@ -460,6 +480,8 @@ struct MascotRenderer {
             drawLighthouse(context, u, state: state)
         case .rocket:
             drawRocket(context, u, state: state)
+        case .raceCar:
+            drawRaceCar(context, u, state: state)
         }
     }
 
@@ -632,6 +654,81 @@ struct MascotRenderer {
         }
     }
 
+    /// Jenerik yarış arabası (önden görünüm): koyu lastikler, kırmızı gövde,
+    /// cam kabin ve state-tint arka kanat. Yüz kaputa, ortak yüz bölgesine oturur.
+    /// Bilinçli olarak hiçbir markanın ayırt edici öğesini taşımaz (telif).
+    private static func drawRaceCar(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+        // Lastikler (gövdenin arkasında).
+        context.setFillColor(Palette.tire)
+        for x in [9.5, 31.5] {
+            context.addPath(CGPath(
+                roundedRect: CGRect(x: x * u, y: 33 * u, width: 7 * u, height: 8.5 * u),
+                cornerWidth: 2.4 * u,
+                cornerHeight: 2.4 * u,
+                transform: nil
+            ))
+        }
+        context.fillPath()
+
+        // Arka kanat: state renk dili buradan okunur (evdeki çatının karşılığı).
+        if let roofGradient = Gradients.roof[state] {
+            let wing = CGRect(x: 13 * u, y: 9.5 * u, width: 22 * u, height: 3 * u)
+            context.saveGState()
+            context.addPath(CGPath(roundedRect: wing, cornerWidth: 1.2 * u, cornerHeight: 1.2 * u, transform: nil))
+            context.clip()
+            context.drawLinearGradient(
+                roofGradient,
+                start: CGPoint(x: wing.minX, y: wing.minY),
+                end: CGPoint(x: wing.maxX, y: wing.maxY),
+                options: []
+            )
+            context.restoreGState()
+        }
+        // Kanat direkleri.
+        context.setFillColor(Palette.tire)
+        context.fill(CGRect(x: 18 * u, y: 12 * u, width: 1.6 * u, height: 3.5 * u))
+        context.fill(CGRect(x: 28.4 * u, y: 12 * u, width: 1.6 * u, height: 3.5 * u))
+
+        // Kabin (cam).
+        let cabin = CGMutablePath()
+        cabin.move(to: CGPoint(x: 15 * u, y: 25 * u))
+        cabin.addLine(to: CGPoint(x: 17.5 * u, y: 15 * u))
+        cabin.addQuadCurve(
+            to: CGPoint(x: 30.5 * u, y: 15 * u),
+            control: CGPoint(x: 24 * u, y: 13 * u)
+        )
+        cabin.addLine(to: CGPoint(x: 33 * u, y: 25 * u))
+        cabin.closeSubpath()
+        context.addPath(cabin)
+        context.setFillColor(Palette.glass)
+        context.fillPath()
+        context.addPath(cabin)
+        context.setStrokeColor(Palette.outline)
+        context.setLineWidth(0.8 * u)
+        context.strokePath()
+
+        // Gövde: geniş, yumuşak köşeli kaput. Yüz (ortak bölge) bunun üstüne çizilir.
+        let body = CGRect(x: 8.5 * u, y: 24 * u, width: 31 * u, height: 15.5 * u)
+        let bodyPath = CGPath(roundedRect: body, cornerWidth: 5.5 * u, cornerHeight: 5.5 * u, transform: nil)
+        let gradient = state == .limit ? Gradients.carMuted : Gradients.car
+        if let gradient {
+            context.saveGState()
+            context.addPath(bodyPath)
+            context.clip()
+            context.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: body.midX, y: body.minY),
+                end: CGPoint(x: body.midX, y: body.maxY),
+                options: []
+            )
+            context.restoreGState()
+        }
+        context.addPath(bodyPath)
+        context.setStrokeColor(Palette.outline)
+        context.setLineWidth(0.8 * u)
+        context.strokePath()
+    }
+
     /// Roket: kapsül gövde, state-tint burun konisi ve yan kanatçıklar.
     /// Yüz gövdeye, ortak yüz bölgesine oturur.
     private static func drawRocket(_ context: CGContext, _ u: CGFloat, state: SessionState) {
@@ -740,8 +837,10 @@ struct MascotRenderer {
             context.setLineWidth((state == .done ? 1.3 : 1.1) * u)
             context.setLineCap(.round)
             context.strokePath()
-        case .attention:
-            let rect = CGRect(x: center.x - 1.75 * u, y: center.y - 1.75 * u, width: 3.5 * u, height: 3.5 * u)
+        case .attention, .questioning:
+            // Şaşkın/meraklı yuvarlak ağız; soruda biraz daha küçük.
+            let radius = (state == .attention ? 1.75 : 1.4) * u
+            let rect = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
             context.setFillColor(Palette.mouth)
             context.fillEllipse(in: rect)
         case .working, .limit:
@@ -754,12 +853,36 @@ struct MascotRenderer {
 
     // MARK: - Aksesuarlar
 
-    /// working efekti karaktere göre ayrışır: ev tüter, fener ışık süpürür, roket alev püskürtür.
+    /// working efekti karaktere göre ayrışır: ev tüter, fener ışık süpürür,
+    /// roket alev püskürtür, yarış arabası egzoz atar.
     private func drawWorkingEffect(_ context: CGContext, _ u: CGFloat) {
         switch character {
         case .house: drawSmoke(context, u)
         case .lighthouse: drawLighthouseBeam(context, u)
         case .rocket: drawRocketFlame(context, u)
+        case .raceCar: drawExhaust(context, u)
+        }
+    }
+
+    /// working (yarış arabası): iki yandan dışarı savrulan egzoz lokmaları.
+    private func drawExhaust(_ context: CGContext, _ u: CGFloat) {
+        for (index, side) in [-1.0, 1.0].enumerated() {
+            for puff in 0..<2 {
+                let phase = (time / 1.1 + Double(index) / 4 + Double(puff) / 2)
+                    .truncatingRemainder(dividingBy: 1)
+                let diameter = (2 + 3 * phase) * u
+                let center = CGPoint(
+                    x: (24 + side * (17 + phase * 7)) * u,
+                    y: (38 - phase * 2 + sin(phase * 5 * .pi) * 0.8) * u
+                )
+                context.setFillColor(Palette.smoke.copy(alpha: (1 - phase) * 0.45) ?? Palette.smoke)
+                context.fillEllipse(in: CGRect(
+                    x: center.x - diameter / 2,
+                    y: center.y - diameter / 2,
+                    width: diameter,
+                    height: diameter
+                ))
+            }
         }
     }
 
@@ -840,6 +963,34 @@ struct MascotRenderer {
         }
     }
 
+    /// questioning: karakterin tepesinde hafifçe süzülen, nefes alan "?" (ADR-015).
+    private func drawQuestionMark(_ context: CGContext, _ u: CGFloat) {
+        let anchor: CGPoint = {
+            switch character {
+            case .house: return CGPoint(x: 36, y: 10)
+            case .lighthouse: return CGPoint(x: 34, y: 6)
+            case .rocket: return CGPoint(x: 34, y: 7)
+            case .raceCar: return CGPoint(x: 36, y: 10)
+            }
+        }()
+        let bob = sin(time * 2 * .pi / 2.0)
+        let fontSize = (7 + 0.5 * bob) * u
+        let tint = Palette.tint[state].flatMap(NSColor.init(cgColor:)) ?? .systemTeal
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .heavy)
+        let rounded = font.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: fontSize) }
+        let text = NSAttributedString(
+            string: "?",
+            attributes: [
+                .font: rounded ?? font,
+                .foregroundColor: tint.withAlphaComponent(0.9),
+            ]
+        )
+        text.draw(at: CGPoint(
+            x: anchor.x * u - fontSize * 0.3,
+            y: (anchor.y + bob * 0.8) * u - fontSize * 0.6
+        ))
+    }
+
     /// limit: karakterin tepesinden süzülüp kaybolan zZz harfleri.
     private func drawSleepZs(_ context: CGContext, _ u: CGFloat) {
         // Başlangıç noktası ve yükselme payı karakter siluetine göre seçilir
@@ -849,6 +1000,7 @@ struct MascotRenderer {
             case .house: return (CGPoint(x: 35, y: 14), 12)
             case .lighthouse: return (CGPoint(x: 34, y: 9), 7)
             case .rocket: return (CGPoint(x: 34, y: 10), 8)
+            case .raceCar: return (CGPoint(x: 35, y: 13), 11)
             }
         }()
         for index in 0..<3 {
