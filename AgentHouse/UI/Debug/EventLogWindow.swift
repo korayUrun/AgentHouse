@@ -34,10 +34,12 @@ final class EventLogStore: ObservableObject {
 /// Debug event log penceresini yöneten geçici denetleyici.
 final class EventLogWindowController {
     private let store: EventLogStore
+    private let sessionManager: SessionManager
     private var window: NSWindow?
 
-    init(store: EventLogStore) {
+    init(store: EventLogStore, sessionManager: SessionManager) {
         self.store = store
+        self.sessionManager = sessionManager
     }
 
     /// Pencereyi (gerekirse oluşturup) öne getirir.
@@ -57,18 +59,25 @@ final class EventLogWindowController {
         )
         window.title = "AgentHouse — Event Log (Debug)"
         window.isReleasedWhenClosed = false
-        window.contentViewController = NSHostingController(rootView: EventLogView(store: store))
+        window.contentViewController = NSHostingController(
+            rootView: EventLogView(store: store, sessionManager: sessionManager)
+        )
         window.center()
         return window
     }
 }
 
-/// Gelen eventleri satır satır listeleyen geçici debug görünümü.
+/// Gelen eventleri ve canlı oturum state'lerini gösteren geçici debug görünümü.
 struct EventLogView: View {
     @ObservedObject var store: EventLogStore
+    @ObservedObject var sessionManager: SessionManager
 
     var body: some View {
         VStack(spacing: 0) {
+            SessionDebugListView(sessions: sessionManager.sessions)
+
+            Divider()
+
             HStack {
                 Text("\(store.entries.count) event")
                     .foregroundStyle(.secondary)
@@ -134,5 +143,46 @@ private struct EventLogRow: View {
             ?? entry.event.prompt
             ?? entry.event.cwd
             ?? ""
+    }
+}
+
+/// Aktif oturumları ve canlı state'lerini listeleyen geçici debug bölümü.
+private struct SessionDebugListView: View {
+    let sessions: [Session]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(sessions.isEmpty ? "Oturum yok" : "\(sessions.count) oturum")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(sessions) { session in
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(color(for: session.state))
+                        .frame(width: 8, height: 8)
+                    Text(session.projectName)
+                        .fontWeight(.semibold)
+                    Text(session.state.rawValue + (session.isStale ? " (stale)" : ""))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(String(session.id.prefix(8)))
+                        .foregroundStyle(.tertiary)
+                }
+                .font(.system(.caption, design: .monospaced))
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func color(for state: SessionState) -> Color {
+        switch state {
+        case .idle: return .gray
+        case .working: return .blue
+        case .attention: return .orange
+        case .done: return .green
+        case .limit: return .purple
+        }
     }
 }

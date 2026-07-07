@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayPanel: OverlayPanel?
     private var menuBarController: MenuBarController?
     private var eventServer: EventServer?
+    private var sessionManager: SessionManager?
     private var eventLogStore: EventLogStore?
     private var eventLogWindowController: EventLogWindowController?
     private var cancellables = Set<AnyCancellable>()
@@ -20,16 +21,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let panel = OverlayPanel()
         overlayPanel = panel
 
+        let manager = SessionManager()
+        manager.startStaleMonitoring()
+        sessionManager = manager
+
         let logStore = EventLogStore()
         eventLogStore = logStore
-        let logWindowController = EventLogWindowController(store: logStore)
+        let logWindowController = EventLogWindowController(store: logStore, sessionManager: manager)
         eventLogWindowController = logWindowController
 
         let server = EventServer(port: EventServer.configuredPort())
         eventServer = server
         server.events
             .receive(on: DispatchQueue.main)
-            .sink { logStore.append($0) }
+            .sink { event in
+                logStore.append(event)
+                manager.handle(event)
+            }
             .store(in: &cancellables)
         do {
             try server.start()
