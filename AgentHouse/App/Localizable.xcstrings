@@ -307,6 +307,16 @@
         }
       }
     },
+    "House" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ev"
+          }
+        }
+      }
+    },
     "Idle" : {
       "localizations" : {
         "tr" : {
@@ -377,12 +387,32 @@
         }
       }
     },
+    "Lighthouse" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deniz Feneri"
+          }
+        }
+      }
+    },
     "Listening port" : {
       "localizations" : {
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dinleme portu"
+          }
+        }
+      }
+    },
+    "Mascot" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maskot"
           }
         }
       }
@@ -523,6 +553,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sıfırlanma: ~%@"
+          }
+        }
+      }
+    },
+    "Rocket" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roket"
           }
         }
       }

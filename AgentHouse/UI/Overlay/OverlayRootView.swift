@@ -16,6 +16,9 @@ struct OverlayRootView: View {
     /// Ekranda duran done banner'ları, session_id → tamamlama bilgisi.
     @State private var doneBanners: [String: LongTaskCompletion] = [:]
 
+    /// Proje → maskot karakteri tercihleri (ADR-014); seçim kart menüsünden yapılır.
+    @StateObject private var mascotPreferences = MascotPreferences()
+
     /// Banner'ın kendiliğinden toplanmadan önce ekranda kaldığı süre (sn).
     static let bannerDisplayDuration: TimeInterval = 5
 
@@ -57,8 +60,19 @@ struct OverlayRootView: View {
                     HStack(alignment: .top, spacing: 10) {
                         ForEach(row) { session in
                             VStack(spacing: 6) {
-                                SessionCardView(session: session)
-                                    .onTapGesture { onSessionActivate(session) }
+                                SessionCardView(
+                                    session: session,
+                                    mascotCharacter: mascotPreferences.character(
+                                        forProject: Self.projectKey(for: session)
+                                    ),
+                                    onSelectMascot: { character in
+                                        mascotPreferences.setCharacter(
+                                            character,
+                                            forProject: Self.projectKey(for: session)
+                                        )
+                                    }
+                                )
+                                .onTapGesture { onSessionActivate(session) }
                                 if let banner = doneBanners[session.id] {
                                     DoneBanner(completion: banner)
                                         .onTapGesture { onSessionActivate(session) }
@@ -71,6 +85,13 @@ struct OverlayRootView: View {
                 }
             }
         }
+    }
+
+    /// Maskot tercihinin bağlandığı proje anahtarı: cwd (kalıcı ve benzersiz);
+    /// cwd bilinmiyorsa proje adına düşer, o da yoksa tercih kaydedilmez.
+    private static func projectKey(for session: Session) -> String? {
+        if let cwd = session.cwd, !cwd.isEmpty { return cwd }
+        return session.projectName == "?" ? nil : session.projectName
     }
 
     /// Oturumları satır başına en fazla `maxCardsPerRow` kart olacak şekilde böler.

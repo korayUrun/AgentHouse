@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Maskot implementasyonlarının ortak sözleşmesi: oturum state'ini alır ve o
-/// state'e uygun animasyonu oynatır (ADR-008 — tek maskot, protokol arkasında).
+/// Maskot implementasyonlarının ortak sözleşmesi: oturum state'ini ve karakteri
+/// alır, o state'e uygun animasyonu oynatır (ADR-008 protokol soyutlaması,
+/// ADR-014 çoklu karakter).
 ///
 /// Animasyonların duraklatılması `\.mascotAnimationsPaused` environment değeriyle
 /// yapılır; panel gizlendiğinde OverlayPanel bu değeri true'ya çeker ve maskot
 /// hiç CPU harcamaz.
 protocol MascotAnimating: View {
-    init(state: SessionState)
+    init(state: SessionState, character: MascotCharacter)
 }
 
 /// Kartlarda kullanılan aktif maskot implementasyonu. Rive maskotu hazır

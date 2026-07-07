@@ -1,15 +1,18 @@
 import SwiftUI
 
 /// Tek bir oturumu overlay panelde gösteren kart: maskot alanı, proje adı,
-/// state etiketi ve son aktivite göstergesi.
+/// state etiketi ve son aktivite göstergesi. Maskot karakteri sağ-tık
+/// menüsünden değiştirilir; seçim projeye kaydedilir (ADR-014).
 struct SessionCardView: View {
     let session: Session
+    var mascotCharacter: MascotCharacter = .default
+    var onSelectMascot: (MascotCharacter) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 8) {
             // attention puls halkası dahil tüm animasyon maskotun kendi içinde
             // (CPU bütçesi için SwiftUI animasyonu yerine CG çizimi).
-            ActiveMascot(state: session.state)
+            ActiveMascot(state: session.state, character: mascotCharacter)
                 .frame(width: 48, height: 48)
 
             Text(session.projectName)
@@ -56,6 +59,23 @@ struct SessionCardView: View {
                 )
         }
         .opacity(session.isStale ? 0.45 : 1)
+        .contextMenu {
+            Menu {
+                ForEach(MascotCharacter.allCases) { character in
+                    Button {
+                        onSelectMascot(character)
+                    } label: {
+                        if character == mascotCharacter {
+                            Label(character.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(character.displayName)
+                        }
+                    }
+                }
+            } label: {
+                Text("Mascot")
+            }
+        }
     }
 
     /// "42 saniye önce" biçiminde kısa göreli zaman; formatter pahalı, bir kez kurulur.

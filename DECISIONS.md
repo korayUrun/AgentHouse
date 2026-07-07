@@ -129,3 +129,18 @@ ediyor; ileride hesap bağlantısıyla gelirse kartta "kalan" gösterimi o zaman
   başlatma). v1.0'da gerek görülmedi: macOS, Sistem Ayarları → Dil ve Bölge →
   Uygulamalar'dan uygulamaya özel dil seçimini zaten native sunuyor; README'de
   bu yol anlatılacak.
+## ADR-014 — Çoklu maskot karakteri (kural 6 revizyonu)
+**Durum:** Kabul edildi (Faz 9 içinde kurucu kararı).
+**Karar:** "Tek maskot" kuralı (CLAUDE.md kural 6) gevşetildi: maskot sistemi birden
+fazla KARAKTER destekler. Animasyon beyni (MascotPose — state başına fizik/zamanlama)
+tüm karakterlerde ORTAKTIR; yeni karakter yalnızca yeni bir çizim (gövde + yüz/efekt
+çapa noktaları) ekler. Seçim modeli: her yeni proje varsayılan karakterle başlar;
+kullanıcı bir projenin maskotunu kart menüsünden değiştirirse bu tercih o projeye
+(cwd anahtarıyla, UserDefaults'ta) kalıcı olarak bağlanır.
+**Gerekçe:** MascotAnimating soyutlaması ve karakterden bağımsız MascotPose zaten bu
+gün için kurulmuştu; karakter başına maliyet bir renderer'a düştü. Proje-bazlı kalıcı
+seçim, kartların bir bakışta ayrışmasını sağlar ve "maskot paketleri" (ADR-012'deki
+gelecek konumlanma) için zemin hazırlar.
+**Sonuç:** UserDefaults'ta yalnızca UI tercihi saklanır (kural 2 ile uyumlu:
+proje yolu → karakter id sözlüğü). Rive/ikinci parti karakter paketleri ertelenen
+fikirler listesinde durmaya devam ediyor.

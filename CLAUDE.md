@@ -29,9 +29,11 @@ karar döndürmez, izin onaylamaz. Sadece dinler ve gösterir.
    Claude Code'un çalışması etkilenmemeli.
 5. **Kapsam:** PLAN.md'deki v1.0 listesi dışına ÇIKMA. "Şunu da ekleyeyim" yok.
    Yeni fikirler DECISIONS.md'ye "ertelendi" olarak not edilir.
-6. **Tek maskot:** Maskot sistemi tek karakter için yazılır ama `MascotAnimating`
-   protokolü üzerinden soyutlanır (ileride paket eklenebilsin diye). Şimdi ikinci
-   maskot YAZMA.
+6. **Maskot karakterleri (ADR-014):** Birden fazla karakter desteklenir; animasyon
+   beyni (`MascotPose`) tüm karakterlerde ORTAKTIR — yeni karakter yalnızca çizim
+   ekler, state fiziğine karakter özel kod yazılmaz. Seçim proje bazlıdır: yeni
+   proje varsayılan karakterle başlar, kullanıcı değiştirirse tercih projeye
+   (cwd → karakter, UserDefaults) kaydedilir.
 
 ## Teknoloji ve sürümler
 

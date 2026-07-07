@@ -11,15 +11,17 @@ import SwiftUI
 /// hissi katmanlı zemin gölgesi ve gradyan boyamayla verilir.
 struct PlaceholderMascotView: View, MascotAnimating {
     let state: SessionState
+    let character: MascotCharacter
 
     @Environment(\.mascotAnimationsPaused) private var animationsPaused
 
-    init(state: SessionState) {
+    init(state: SessionState, character: MascotCharacter = .default) {
         self.state = state
+        self.character = character
     }
 
     var body: some View {
-        MascotCanvasRepresentable(state: state, isPaused: animationsPaused)
+        MascotCanvasRepresentable(state: state, character: character, isPaused: animationsPaused)
     }
 }
 
@@ -89,6 +91,7 @@ struct MascotPose {
 /// MascotCanvasNSView'ı SwiftUI'ye bağlayan ince köprü.
 private struct MascotCanvasRepresentable: NSViewRepresentable {
     let state: SessionState
+    let character: MascotCharacter
     let isPaused: Bool
 
     func makeNSView(context: Context) -> MascotCanvasNSView {
@@ -96,7 +99,7 @@ private struct MascotCanvasRepresentable: NSViewRepresentable {
     }
 
     func updateNSView(_ view: MascotCanvasNSView, context: Context) {
-        view.apply(state: state, isPaused: isPaused)
+        view.apply(state: state, character: character, isPaused: isPaused)
     }
 
     static func dismantleNSView(_ view: MascotCanvasNSView, coordinator: ()) {
@@ -167,6 +170,7 @@ private final class MascotFrameClock {
 private final class MascotCanvasNSView: NSView, CALayerDelegate {
     private let mascotLayer = CALayer()
     private var state: SessionState = .idle
+    private var character: MascotCharacter = .default
     private var isPaused = false
     private var stateChangedAt = Date()
 
@@ -209,13 +213,14 @@ private final class MascotCanvasNSView: NSView, CALayerDelegate {
         mascotLayer.setNeedsDisplay()
     }
 
-    /// SwiftUI güncellemelerini uygular; saat yalnızca state/pause değişince dürtülür.
-    func apply(state: SessionState, isPaused: Bool) {
-        guard state != self.state || isPaused != self.isPaused else { return }
+    /// SwiftUI güncellemelerini uygular; saat yalnızca state/karakter/pause değişince dürtülür.
+    func apply(state: SessionState, character: MascotCharacter, isPaused: Bool) {
+        guard state != self.state || character != self.character || isPaused != self.isPaused else { return }
         if state != self.state {
             self.state = state
             stateChangedAt = Date()
         }
+        self.character = character
         self.isPaused = isPaused
         MascotFrameClock.shared.updateTimer()
         mascotLayer.setNeedsDisplay()
@@ -250,6 +255,7 @@ private final class MascotCanvasNSView: NSView, CALayerDelegate {
         let time = now.timeIntervalSinceReferenceDate
         let renderer = MascotRenderer(
             state: state,
+            character: character,
             pose: MascotPose(
                 state: state,
                 time: time,
@@ -266,9 +272,12 @@ private final class MascotCanvasNSView: NSView, CALayerDelegate {
 }
 
 /// Maskotu 48x48'lik tasarım uzayında CGContext'e çizen renderer. Zemin gölgesi
-/// zıplamayla küçülür/soluklaşır, çatı ve gövde gradyanla boyanır.
-private struct MascotRenderer {
+/// zıplamayla küçülür/soluklaşır, gövdeler gradyanla boyanır. Karakterler (ADR-014)
+/// yalnızca statik gövde çizimi ve efekt çapa noktalarıyla ayrışır; yüz konumu ve
+/// tüm poz fiziği ortaktır.
+struct MascotRenderer {
     let state: SessionState
+    let character: MascotCharacter
     let pose: MascotPose
     let time: TimeInterval
 
@@ -283,6 +292,12 @@ private struct MascotRenderer {
         static let eye = CGColor(red: 0.25, green: 0.18, blue: 0.12, alpha: 1)
         static let mouth = CGColor(red: 0.45, green: 0.30, blue: 0.20, alpha: 1)
         static let smoke = CGColor(gray: 0.55, alpha: 1)
+        // Deniz feneri: sıcak cam ve süpüren ışık huzmesi.
+        static let lanternGlass = CGColor(red: 1.0, green: 0.92, blue: 0.62, alpha: 1)
+        static let beam = CGColor(red: 1.0, green: 0.95, blue: 0.65, alpha: 0.40)
+        // Roket alevi: dış turuncu, iç sarı.
+        static let flameOuter = CGColor(red: 1.0, green: 0.55, blue: 0.20, alpha: 0.95)
+        static let flameInner = CGColor(red: 1.0, green: 0.86, blue: 0.38, alpha: 0.95)
         static let confetti: [CGColor] = [
             CGColor(red: 0.30, green: 0.78, blue: 0.47, alpha: 1),
             CGColor(red: 0.98, green: 0.82, blue: 0.25, alpha: 1),
@@ -320,16 +335,28 @@ private struct MascotRenderer {
         }
     }
 
-    // Ev gövdesi (baca+çatı+gövde) her karede aynıdır; gradyan rasterizasyonunu
-    // kare başına yapmamak için state başına bir kez 2x bitmap'e çizilir ve
+    // Karakter gövdesi her karede aynıdır; gradyan rasterizasyonunu kare başına
+    // yapmamak için (karakter, state) başına bir kez 2x bitmap'e çizilir ve
     // her karede tek blit yapılır (profillemede ripc_DrawShading sıcak çıkmıştı).
     private enum Sprites {
         static let pixelScale: CGFloat = 2
-        static let house: [SessionState: CGImage] = Dictionary(
-            uniqueKeysWithValues: SessionState.allCases.compactMap { state in
-                makeHouse(for: state).map { (state, $0) }
+
+        struct Key: Hashable {
+            let character: MascotCharacter
+            let state: SessionState
+        }
+
+        static let body: [Key: CGImage] = {
+            var result: [Key: CGImage] = [:]
+            for character in MascotCharacter.allCases {
+                for state in SessionState.allCases {
+                    if let image = makeBody(character: character, state: state) {
+                        result[Key(character: character, state: state)] = image
+                    }
+                }
             }
-        )
+            return result
+        }()
 
         /// Yumuşak kenarlı elips zemin gölgesi (radyal gradyan), bir kez üretilir.
         static let shadow: CGImage? = {
@@ -352,13 +379,13 @@ private struct MascotRenderer {
             return bitmap.makeImage()
         }()
 
-        private static func makeHouse(for state: SessionState) -> CGImage? {
+        private static func makeBody(character: MascotCharacter, state: SessionState) -> CGImage? {
             let side = Int(48 * pixelScale)
             guard let bitmap = makeBitmap(width: side, height: side) else { return nil }
             // Tasarım uzayı üstten aşağı; bitmap'in alt-sol origin'ini çevir.
             bitmap.translateBy(x: 0, y: CGFloat(side))
             bitmap.scaleBy(x: 1, y: -1)
-            MascotRenderer.drawHouse(bitmap, pixelScale, state: state)
+            MascotRenderer.drawBody(bitmap, pixelScale, character: character, state: state)
             return bitmap.makeImage()
         }
 
@@ -395,12 +422,12 @@ private struct MascotRenderer {
         context.scaleBy(x: 2 - pose.squash, y: pose.squash)
         context.translateBy(x: -anchor.x, y: -anchor.y)
 
-        if pose.isSmoking { drawSmoke(context, u) }
+        if pose.isSmoking { drawWorkingEffect(context, u) }
         if pose.isSleeping { drawSleepZs(context, u) }
-        if let house = Sprites.house[state] {
-            blit(house, in: CGRect(x: 0, y: 0, width: 48 * u, height: 48 * u), context: context)
+        if let body = Sprites.body[Sprites.Key(character: character, state: state)] {
+            blit(body, in: CGRect(x: 0, y: 0, width: 48 * u, height: 48 * u), context: context)
         } else {
-            Self.drawHouse(context, u, state: state)
+            Self.drawBody(context, u, character: character, state: state)
         }
         drawEyes(context, u)
         drawMouth(context, u)
@@ -420,11 +447,20 @@ private struct MascotRenderer {
         context.restoreGState()
     }
 
-    /// Evin statik parçaları; hem sprite üretiminde hem (sprite yoksa) doğrudan çizimde kullanılır.
-    private static func drawHouse(_ context: CGContext, _ u: CGFloat, state: SessionState) {
-        drawChimney(context, u)
-        drawRoof(context, u, state: state)
-        drawBody(context, u, state: state)
+    /// Karakterin statik gövdesi; hem sprite üretiminde hem (sprite yoksa) doğrudan
+    /// çizimde kullanılır. Her karakter yüzü aynı bölgeye (gözler y=29, ağız y=35.5)
+    /// oturtacak şekilde tasarlanır ki yüz/poz kodu ortak kalsın.
+    private static func drawBody(_ context: CGContext, _ u: CGFloat, character: MascotCharacter, state: SessionState) {
+        switch character {
+        case .house:
+            drawChimney(context, u)
+            drawRoof(context, u, state: state)
+            drawHouseBody(context, u, state: state)
+        case .lighthouse:
+            drawLighthouse(context, u, state: state)
+        case .rocket:
+            drawRocket(context, u, state: state)
+        }
     }
 
     // MARK: - Attention halkası
@@ -469,7 +505,7 @@ private struct MascotRenderer {
 
     // MARK: - Karakter parçaları (statik; sprite üretiminde kullanılır)
 
-    private static func drawBody(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+    private static func drawHouseBody(_ context: CGContext, _ u: CGFloat, state: SessionState) {
         let rect = CGRect(x: 10 * u, y: 21 * u, width: 28 * u, height: 20 * u)
         let path = CGPath(roundedRect: rect, cornerWidth: 5 * u, cornerHeight: 5 * u, transform: nil)
         let gradient = state == .limit ? Gradients.bodyMuted : Gradients.body
@@ -528,6 +564,140 @@ private struct MascotRenderer {
         context.fillPath()
     }
 
+    /// Deniz feneri: şeritli daralan kule, galeri platformu, fener odası ve
+    /// state-tint kubbeli tepe. Yüz kuleye, ortak yüz bölgesine oturur.
+    private static func drawLighthouse(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+        // Kule (daralan gövde).
+        let tower = CGMutablePath()
+        tower.move(to: CGPoint(x: 13 * u, y: 41 * u))
+        tower.addLine(to: CGPoint(x: 17 * u, y: 14.5 * u))
+        tower.addLine(to: CGPoint(x: 31 * u, y: 14.5 * u))
+        tower.addLine(to: CGPoint(x: 35 * u, y: 41 * u))
+        tower.closeSubpath()
+
+        let gradient = state == .limit ? Gradients.bodyMuted : Gradients.body
+        if let gradient {
+            context.saveGState()
+            context.addPath(tower)
+            context.clip()
+            context.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: 24 * u, y: 14.5 * u),
+                end: CGPoint(x: 24 * u, y: 41 * u),
+                options: []
+            )
+            // Şeritler (yüz bölgesinin üstünde kalır).
+            let stripe = Palette.chimney.copy(alpha: state == .limit ? 0.20 : 0.38) ?? Palette.chimney
+            context.setFillColor(stripe)
+            context.fill(CGRect(x: 12 * u, y: 16.5 * u, width: 24 * u, height: 2.8 * u))
+            context.fill(CGRect(x: 12 * u, y: 22 * u, width: 24 * u, height: 2.8 * u))
+            context.restoreGState()
+        }
+        context.addPath(tower)
+        context.setStrokeColor(Palette.outline)
+        context.setLineWidth(0.8 * u)
+        context.strokePath()
+
+        // Galeri platformu.
+        let gallery = CGRect(x: 15.5 * u, y: 12.5 * u, width: 17 * u, height: 2.6 * u)
+        context.addPath(CGPath(roundedRect: gallery, cornerWidth: 1.2 * u, cornerHeight: 1.2 * u, transform: nil))
+        context.setFillColor(Palette.chimney)
+        context.fillPath()
+
+        // Fener odası (sıcak cam).
+        let lantern = CGRect(x: 19.5 * u, y: 7 * u, width: 9 * u, height: 6 * u)
+        context.addPath(CGPath(roundedRect: lantern, cornerWidth: 1 * u, cornerHeight: 1 * u, transform: nil))
+        context.setFillColor(Palette.lanternGlass)
+        context.fillPath()
+
+        // Kubbe: state renk dili buradan okunur (evdeki çatının karşılığı).
+        let dome = CGMutablePath()
+        dome.move(to: CGPoint(x: 18.5 * u, y: 7.5 * u))
+        dome.addQuadCurve(
+            to: CGPoint(x: 29.5 * u, y: 7.5 * u),
+            control: CGPoint(x: 24 * u, y: 1.5 * u)
+        )
+        dome.closeSubpath()
+        if let roofGradient = Gradients.roof[state] {
+            context.saveGState()
+            context.addPath(dome)
+            context.clip()
+            context.drawLinearGradient(
+                roofGradient,
+                start: CGPoint(x: 18.5 * u, y: 2 * u),
+                end: CGPoint(x: 29.5 * u, y: 7.5 * u),
+                options: []
+            )
+            context.restoreGState()
+        }
+    }
+
+    /// Roket: kapsül gövde, state-tint burun konisi ve yan kanatçıklar.
+    /// Yüz gövdeye, ortak yüz bölgesine oturur.
+    private static func drawRocket(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+        // Kanatçıklar (gövdenin arkasında).
+        context.setFillColor(Palette.chimney)
+        let leftFin = CGMutablePath()
+        leftFin.move(to: CGPoint(x: 15.5 * u, y: 30 * u))
+        leftFin.addLine(to: CGPoint(x: 9.5 * u, y: 41 * u))
+        leftFin.addLine(to: CGPoint(x: 15.5 * u, y: 41 * u))
+        leftFin.closeSubpath()
+        context.addPath(leftFin)
+        let rightFin = CGMutablePath()
+        rightFin.move(to: CGPoint(x: 32.5 * u, y: 30 * u))
+        rightFin.addLine(to: CGPoint(x: 38.5 * u, y: 41 * u))
+        rightFin.addLine(to: CGPoint(x: 32.5 * u, y: 41 * u))
+        rightFin.closeSubpath()
+        context.addPath(rightFin)
+        context.fillPath()
+
+        // Gövde: altı düz, tepesi kubbeli kapsül.
+        let bodyPath = CGMutablePath()
+        bodyPath.move(to: CGPoint(x: 15 * u, y: 41 * u))
+        bodyPath.addLine(to: CGPoint(x: 15 * u, y: 17 * u))
+        bodyPath.addQuadCurve(to: CGPoint(x: 24 * u, y: 6.5 * u), control: CGPoint(x: 15 * u, y: 8.5 * u))
+        bodyPath.addQuadCurve(to: CGPoint(x: 33 * u, y: 17 * u), control: CGPoint(x: 33 * u, y: 8.5 * u))
+        bodyPath.addLine(to: CGPoint(x: 33 * u, y: 41 * u))
+        bodyPath.closeSubpath()
+
+        let gradient = state == .limit ? Gradients.bodyMuted : Gradients.body
+        if let gradient {
+            context.saveGState()
+            context.addPath(bodyPath)
+            context.clip()
+            context.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: 24 * u, y: 6.5 * u),
+                end: CGPoint(x: 24 * u, y: 41 * u),
+                options: []
+            )
+            // Burun konisi: state renk dili (evdeki çatının karşılığı).
+            if let roofGradient = Gradients.roof[state] {
+                let nose = CGMutablePath()
+                nose.move(to: CGPoint(x: 15 * u, y: 15 * u))
+                nose.addLine(to: CGPoint(x: 33 * u, y: 15 * u))
+                nose.addLine(to: CGPoint(x: 33 * u, y: 6.5 * u))
+                nose.addLine(to: CGPoint(x: 15 * u, y: 6.5 * u))
+                nose.closeSubpath()
+                context.saveGState()
+                context.addPath(nose)
+                context.clip()
+                context.drawLinearGradient(
+                    roofGradient,
+                    start: CGPoint(x: 24 * u, y: 6.5 * u),
+                    end: CGPoint(x: 24 * u, y: 15 * u),
+                    options: []
+                )
+                context.restoreGState()
+            }
+            context.restoreGState()
+        }
+        context.addPath(bodyPath)
+        context.setStrokeColor(Palette.outline)
+        context.setLineWidth(0.8 * u)
+        context.strokePath()
+    }
+
     private func drawEyes(_ context: CGContext, _ u: CGFloat) {
         let openness = max(pose.eyeOpenness, 0.08)
         let eyeHeight = 4.6 * u * openness
@@ -584,7 +754,73 @@ private struct MascotRenderer {
 
     // MARK: - Aksesuarlar
 
-    /// working: bacadan düzenli aralıklarla yükselip dağılan duman lokmaları.
+    /// working efekti karaktere göre ayrışır: ev tüter, fener ışık süpürür, roket alev püskürtür.
+    private func drawWorkingEffect(_ context: CGContext, _ u: CGFloat) {
+        switch character {
+        case .house: drawSmoke(context, u)
+        case .lighthouse: drawLighthouseBeam(context, u)
+        case .rocket: drawRocketFlame(context, u)
+        }
+    }
+
+    /// working (deniz feneri): fener odasından iki yana, yatay eksende süpüren
+    /// çift ışık huzmesi (tam dönüş kule arkasında kaybolduğu için salınım tercih edildi).
+    private func drawLighthouseBeam(_ context: CGContext, _ u: CGFloat) {
+        let center = CGPoint(x: 24 * u, y: 10 * u)
+        let sweep = sin(time * 2 * .pi / 2.4) * 0.35
+        let spread = 0.16
+        let radius = 16 * u
+        context.setFillColor(Palette.beam)
+        for direction in [0.0, Double.pi] {
+            let angle = sweep + direction
+            let wedge = CGMutablePath()
+            wedge.move(to: center)
+            wedge.addLine(to: CGPoint(
+                x: center.x + cos(angle - spread) * radius,
+                y: center.y + sin(angle - spread) * radius
+            ))
+            wedge.addLine(to: CGPoint(
+                x: center.x + cos(angle + spread) * radius,
+                y: center.y + sin(angle + spread) * radius
+            ))
+            wedge.closeSubpath()
+            context.addPath(wedge)
+        }
+        context.fillPath()
+    }
+
+    /// working (roket): gövde altında titreşen alev + iki minik egzoz lokması.
+    private func drawRocketFlame(_ context: CGContext, _ u: CGFloat) {
+        let flicker = 0.7 + 0.3 * abs(sin(time * 2 * .pi / 0.18))
+        let outerHeight = 6.5 * flicker * u
+        context.setFillColor(Palette.flameOuter)
+        context.fillEllipse(in: CGRect(
+            x: 24 * u - 3.4 * u,
+            y: 40.5 * u,
+            width: 6.8 * u,
+            height: outerHeight
+        ))
+        context.setFillColor(Palette.flameInner)
+        context.fillEllipse(in: CGRect(
+            x: 24 * u - 1.8 * u,
+            y: 40.5 * u,
+            width: 3.6 * u,
+            height: outerHeight * 0.6
+        ))
+        for (index, offset) in [-5.5, 5.5].enumerated() {
+            let phase = (time / 0.9 + Double(index) / 2).truncatingRemainder(dividingBy: 1)
+            let diameter = (1.6 + 2 * phase) * u
+            context.setFillColor(Palette.smoke.copy(alpha: (1 - phase) * 0.4) ?? Palette.smoke)
+            context.fillEllipse(in: CGRect(
+                x: (24 + offset + phase * offset * 0.6) * u - diameter / 2,
+                y: (42 + phase * 3) * u - diameter / 2,
+                width: diameter,
+                height: diameter
+            ))
+        }
+    }
+
+    /// working (ev): bacadan düzenli aralıklarla yükselip dağılan duman lokmaları.
     private func drawSmoke(_ context: CGContext, _ u: CGFloat) {
         for index in 0..<3 {
             let phase = (time / 1.4 + Double(index) / 3).truncatingRemainder(dividingBy: 1)
@@ -604,8 +840,17 @@ private struct MascotRenderer {
         }
     }
 
-    /// limit: çatının yanından süzülüp kaybolan zZz harfleri.
+    /// limit: karakterin tepesinden süzülüp kaybolan zZz harfleri.
     private func drawSleepZs(_ context: CGContext, _ u: CGFloat) {
+        // Başlangıç noktası ve yükselme payı karakter siluetine göre seçilir
+        // (uzun karakterlerde harfler tuvalin dışına taşmasın).
+        let (anchor, rise): (CGPoint, CGFloat) = {
+            switch character {
+            case .house: return (CGPoint(x: 35, y: 14), 12)
+            case .lighthouse: return (CGPoint(x: 34, y: 9), 7)
+            case .rocket: return (CGPoint(x: 34, y: 10), 8)
+            }
+        }()
         for index in 0..<3 {
             let phase = (time / 2.2 + Double(index) / 3).truncatingRemainder(dividingBy: 1)
             let fontSize = (4.5 + 3 * phase) * u
@@ -620,8 +865,8 @@ private struct MascotRenderer {
                 ]
             )
             text.draw(at: CGPoint(
-                x: (35 + phase * 5) * u - fontSize * 0.3,
-                y: (14 - phase * 12) * u - fontSize * 0.6
+                x: (anchor.x + phase * 5) * u - fontSize * 0.3,
+                y: (anchor.y - phase * rise) * u - fontSize * 0.6
             ))
         }
     }
@@ -650,6 +895,43 @@ private struct MascotRenderer {
     }
 }
 
+/// Testler ve görsel doğrulama için: bir karakter×state karesini PNG'ye çizer.
+/// UI hiyerarşisi kurmadan renderer'ın tüm kombinasyonlarda çıktı ürettiğini kanıtlar.
+enum MascotSnapshot {
+    static func png(
+        character: MascotCharacter,
+        state: SessionState,
+        size: Int = 96,
+        time: TimeInterval = 0.9
+    ) -> Data? {
+        guard let bitmap = CGContext(
+            data: nil,
+            width: size,
+            height: size,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        bitmap.translateBy(x: 0, y: CGFloat(size))
+        bitmap.scaleBy(x: 1, y: -1)
+
+        let renderer = MascotRenderer(
+            state: state,
+            character: character,
+            pose: MascotPose(state: state, time: time, timeSinceStateChange: time),
+            time: time
+        )
+        let previous = NSGraphicsContext.current
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: bitmap, flipped: true)
+        renderer.draw(in: bitmap, size: CGSize(width: size, height: size))
+        NSGraphicsContext.current = previous
+
+        guard let image = bitmap.makeImage() else { return nil }
+        return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+    }
+}
+
 #Preview("State'ler") {
     HStack(spacing: 16) {
         ForEach(SessionState.allCases, id: \.self) { state in
@@ -659,6 +941,20 @@ private struct MascotRenderer {
                 Text(state.rawValue)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+    .padding()
+}
+
+#Preview("Karakterler") {
+    VStack(spacing: 12) {
+        ForEach(MascotCharacter.allCases) { character in
+            HStack(spacing: 16) {
+                ForEach(SessionState.allCases, id: \.self) { state in
+                    PlaceholderMascotView(state: state, character: character)
+                        .frame(width: 48, height: 48)
+                }
             }
         }
     }
