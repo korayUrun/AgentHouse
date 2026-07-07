@@ -3,13 +3,16 @@ import SwiftUI
 import os
 
 /// Şeffaf, her zaman önde duran, odak çalmayan ve sürüklenebilir overlay paneli.
+/// Boyutu, SwiftUI içeriğinin ideal boyutuna göre otomatik ayarlanır.
 final class OverlayPanel: NSPanel {
-    private static let originDefaultsKey = "overlayPanelOrigin"
+    private static let topLeftDefaultsKey = "overlayPanelTopLeft"
+    // Faz 1-3'te alt-sol origin saklanıyordu; ilk açılışta üst-sol kayda taşınır.
+    private static let legacyOriginDefaultsKey = "overlayPanelOrigin"
     private static let defaultSize = NSSize(width: 320, height: 140)
 
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "OverlayPanel")
 
-    init() {
+    init(sessionManager: SessionManager) {
         super.init(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -29,7 +32,11 @@ final class OverlayPanel: NSPanel {
         isReleasedWhenClosed = false
         animationBehavior = .none
 
-        let hostingView = NSHostingView(rootView: OverlayRootView())
+        let hostingView = NSHostingView(
+            rootView: OverlayRootView(sessionManager: sessionManager) { [weak self] size in
+                self?.resizeToFit(size)
+            }
+        )
         contentView = hostingView
 
         restorePosition()
@@ -71,21 +78,42 @@ final class OverlayPanel: NSPanel {
         return isVisible
     }
 
+    // MARK: - İçeriğe göre boyutlanma
+
+    /// Paneli, üst-sol köşesi sabit kalacak şekilde içeriğin ideal boyutuna getirir.
+    private func resizeToFit(_ contentSize: CGSize) {
+        guard contentSize.width >= 1, contentSize.height >= 1 else { return }
+        let current = frame
+        guard
+            abs(current.width - contentSize.width) > 0.5
+                || abs(current.height - contentSize.height) > 0.5
+        else { return }
+
+        let newFrame = NSRect(
+            x: current.origin.x,
+            y: current.maxY - contentSize.height,
+            width: contentSize.width,
+            height: contentSize.height
+        )
+        setFrame(newFrame, display: true)
+    }
+
     // MARK: - Pozisyon kalıcılığı
 
+    // Boyut içerikle değiştiği için origin (alt-sol) yerine üst-sol köşe saklanır;
+    // böylece panel büyüyüp küçülürken ekrandaki yeri sabit algılanır.
     @objc private func persistPosition() {
-        UserDefaults.standard.set(NSStringFromPoint(frame.origin), forKey: Self.originDefaultsKey)
+        let topLeft = NSPoint(x: frame.origin.x, y: frame.maxY)
+        UserDefaults.standard.set(NSStringFromPoint(topLeft), forKey: Self.topLeftDefaultsKey)
     }
 
     private func restorePosition() {
-        guard
-            let stored = UserDefaults.standard.string(forKey: Self.originDefaultsKey)
-        else {
+        guard let topLeft = storedTopLeft() else {
             moveToDefaultPosition()
             return
         }
 
-        let origin = NSPointFromString(stored)
+        let origin = NSPoint(x: topLeft.x, y: topLeft.y - frame.height)
         let restoredFrame = NSRect(origin: origin, size: frame.size)
 
         // Kaydedilen pozisyon artık hiçbir ekranla kesişmiyorsa (ekran söküldü,
@@ -100,6 +128,20 @@ final class OverlayPanel: NSPanel {
         }
 
         setFrameOrigin(origin)
+    }
+
+    /// Kaydedilmiş üst-sol köşeyi döndürür; yalnızca eski alt-sol kayıt varsa
+    /// eski varsayılan boyut üzerinden üst-sola çevirir.
+    private func storedTopLeft() -> NSPoint? {
+        let defaults = UserDefaults.standard
+        if let stored = defaults.string(forKey: Self.topLeftDefaultsKey) {
+            return NSPointFromString(stored)
+        }
+        if let legacy = defaults.string(forKey: Self.legacyOriginDefaultsKey) {
+            let origin = NSPointFromString(legacy)
+            return NSPoint(x: origin.x, y: origin.y + Self.defaultSize.height)
+        }
+        return nil
     }
 
     private func moveToDefaultPosition() {

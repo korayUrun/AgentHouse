@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-// NOT: Bu dosyanın tamamı Faz 2'ye özgü GEÇİCİ debug arayüzüdür; Faz 4'te
-// ayarlardaki gizli "debug log" seçeneğine taşınıp buradan kaldırılacak.
+// NOT: Gizli debug arayüzü. Faz 4 itibarıyla menüde görünmez; menü bar menüsü
+// açıkken Option'a basılınca beliren girdiyle açılır. Faz 8'de SettingsView'daki
+// gizli "debug log" seçeneğine bağlanacak.
 
 /// Gelen hook eventlerini debug amaçlı tutan geçici store.
 final class EventLogStore: ObservableObject {

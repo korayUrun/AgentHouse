@@ -18,12 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Unit testler bu uygulamayı host olarak başlatır; test sırasında UI ve sunucu kurulmaz.
         guard NSClassFromString("XCTestCase") == nil else { return }
 
-        let panel = OverlayPanel()
-        overlayPanel = panel
-
         let manager = SessionManager()
         manager.startStaleMonitoring()
         sessionManager = manager
+
+        let panel = OverlayPanel(sessionManager: manager)
+        overlayPanel = panel
 
         let logStore = EventLogStore()
         eventLogStore = logStore

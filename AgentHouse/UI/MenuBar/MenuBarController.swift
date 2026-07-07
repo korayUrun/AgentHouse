@@ -46,14 +46,15 @@ final class MenuBarController: NSObject {
         togglePanelItem.action = #selector(togglePanel)
         menu.addItem(togglePanelItem)
 
-        menu.addItem(.separator())
-
-        // Faz 2'ye özgü geçici debug girdisi; Faz 4'te ayarlara taşınacak.
+        // Gizli debug girdisi: menü açıkken Option'a basılınca panel girdisinin
+        // yerinde belirir. Faz 8'de SettingsView'daki gizli "debug log" seçeneğine taşınacak.
         let eventLogItem = NSMenuItem(
             title: "Event Log (Debug)",
             action: #selector(openEventLog),
-            keyEquivalent: "l"
+            keyEquivalent: "p"
         )
+        eventLogItem.keyEquivalentModifierMask = [.command, .option]
+        eventLogItem.isAlternate = true
         eventLogItem.target = self
         menu.addItem(eventLogItem)
 
