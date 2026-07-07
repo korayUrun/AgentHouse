@@ -90,6 +90,32 @@ başlangıcından hesapla). Bu tespit best-effort'tur; emin değilsen state'i bo
 - Loglama: `os.Logger`, subsystem `com.agenthouse.app`. print() bırakma.
 - Test: StateMachine ve UsageReader %100'e yakın unit test kapsamı; UI için gerekmiyor.
 
+## Mühendislik ilkeleri
+
+**Asenkron programlama:**
+- Paylaşılan mutable state ya TEK bir seri `DispatchQueue`'ya ya da bir aktöre
+  hapsedilir; kilitsiz "umarım çakışmaz" kodu yazılmaz.
+- UI'a çıkan her veri ana thread'de teslim edilir (`receive(on: .main)` /
+  `@MainActor`). Ana thread'de bloklayan iş (dosya, ağ, parse) yapılmaz.
+- Callback tabanlı sistem API'leri (NWListener, DispatchSource) ince sarmalayıcı
+  tiplerde izole edilir; dışarıya Combine publisher veya async arayüz verilir.
+
+**SOLID:**
+- **S** — Her tip tek iş yapar: EventServer taşır, StateMachine karar verir,
+  SessionManager tutar, View gösterir. "Bir de şunu yapsın" denen an tip bölünür.
+- **O/D** — Katmanlar somut tiplere değil protokollere bağlanır (`MascotAnimating`
+  gibi). Bağımlılıklar init'ten enjekte edilir (URL, port, timer/saat) — testte
+  gerçek dosya sistemi/saat yerine sahtesi geçirilebilmeli.
+- **L** — Bir protokolü uygulayan tip, sözleşmenin beklentisini daraltamaz.
+- **I** — Şişman protokol yok; kullanıcısının ihtiyacı kadar arayüz.
+
+**Genel:**
+- KISS ve YAGNI (kural 5 ile aynı ruh): en basit doğru çözüm; "ileride lazım olur"
+  diye soyutlama/altyapı yazılmaz.
+- DRY: aynı bilgi iki yerde yaşamaz (örn. hook komutu tek yerde üretilir).
+- Karar veren kod (state geçişi, parse) saf fonksiyon olarak yazılır (girdi→çıktı,
+  yan etkisiz) ki tek başına unit test edilebilsin; yan etkiler kenarlara itilir.
+
 ## Çalışma şekli
 
 - Her fazın sonunda PHASES.md'deki "Bitti sayılır" kriterlerini kontrol et.
