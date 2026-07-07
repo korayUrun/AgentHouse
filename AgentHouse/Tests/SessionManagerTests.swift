@@ -297,4 +297,42 @@ final class SessionManagerTests: XCTestCase {
         XCTAssertEqual(manager.sessions[0].state, .attention)
         XCTAssertNil(manager.sessions[0].limitResetAt)
     }
+
+    // MARK: - Usage entegrasyonu (Faz 7)
+
+    func testUpdateUsageSetsUsageOnExistingSession() {
+        let manager = makeManager()
+        manager.handle(event("SessionStart"))
+
+        var usage = SessionUsage()
+        usage.add(UsageDelta(model: "claude-opus-4-8", inputTokens: 100, outputTokens: 200))
+        manager.updateUsage(usage, forSession: "s1")
+
+        XCTAssertEqual(manager.sessions[0].usage?.totalTokens, 300)
+    }
+
+    func testUpdateUsageForUnknownSessionDoesNotCreateCard() {
+        let manager = makeManager()
+        manager.updateUsage(SessionUsage(), forSession: "hayalet")
+        XCTAssertTrue(manager.sessions.isEmpty)
+    }
+
+    func testApplyLimitSignalMovesSessionToLimitWithResetEstimate() {
+        let manager = makeManager()
+        let sessionStart = currentDate
+        manager.handle(event("SessionStart"))
+        manager.handle(event("UserPromptSubmit"))
+
+        currentDate = currentDate.addingTimeInterval(3600)
+        manager.applyLimitSignal(toSession: "s1")
+
+        XCTAssertEqual(manager.sessions[0].state, .limit)
+        XCTAssertEqual(manager.sessions[0].limitResetAt, sessionStart.addingTimeInterval(5 * 3600))
+    }
+
+    func testApplyLimitSignalForUnknownSessionIsIgnored() {
+        let manager = makeManager()
+        manager.applyLimitSignal(toSession: "hayalet")
+        XCTAssertTrue(manager.sessions.isEmpty)
+    }
 }

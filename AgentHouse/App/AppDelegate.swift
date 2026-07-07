@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var eventLogStore: EventLogStore?
     private var eventLogWindowController: EventLogWindowController?
     private var systemNotifier: SystemNotifier?
+    private var usageReader: UsageReader?
     private var cancellables = Set<AnyCancellable>()
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "AppDelegate")
 
@@ -37,6 +38,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { notifier.notifyLongTaskCompleted($0) }
             .store(in: &cancellables)
 
+        let reader = UsageReader()
+        usageReader = reader
+        reader.usageUpdated
+            .receive(on: DispatchQueue.main)
+            .sink { update in
+                manager.updateUsage(update.usage, forSession: update.sessionId)
+            }
+            .store(in: &cancellables)
+        reader.limitDetected
+            .receive(on: DispatchQueue.main)
+            .sink { sessionId in
+                manager.applyLimitSignal(toSession: sessionId)
+            }
+            .store(in: &cancellables)
+
         let server = EventServer(port: EventServer.configuredPort())
         eventServer = server
         server.events
@@ -44,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { event in
                 logStore.append(event)
                 manager.handle(event)
+                reader.handle(event)
             }
             .store(in: &cancellables)
         do {

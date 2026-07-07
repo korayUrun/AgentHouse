@@ -32,4 +32,11 @@ enum SessionStateMachine {
     static func applyDoneTimeout(state: SessionState) -> SessionState {
         state == .done ? .idle : state
     }
+
+    /// Hook dışı bir kaynaktan (UsageReader'ın canlı JSONL rate-limit izi) gelen limit
+    /// sinyalinin geçişi: her state limit'e taşınır. Limitten çıkış yine hook
+    /// eventleriyle olur (yeni prompt/tool → working).
+    static func applyLimitSignal(state: SessionState) -> SessionState {
+        .limit
+    }
 }

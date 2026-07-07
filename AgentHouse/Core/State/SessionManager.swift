@@ -20,6 +20,8 @@ struct Session: Identifiable, Equatable {
     var workingSince: Date? = nil
     /// limit state'indeyken tahmini reset anı; çalışma devam edince temizlenir.
     var limitResetAt: Date? = nil
+    /// UsageReader'dan gelen birikmiş token/maliyet; transcript izlenemiyorsa nil.
+    var usage: SessionUsage? = nil
     /// Oturum kartının oluşturulduğu an (sıralama ve limit penceresi tahmini için).
     let startedAt: Date
 }
@@ -178,6 +180,28 @@ final class SessionManager: ObservableObject {
             break
         }
         return nil
+    }
+
+    /// UsageReader'dan gelen birikmiş usage'ı oturuma yazar. Oturum yoksa yok sayılır
+    /// (usage tek başına kart oluşturmaz — kartın sahibi hook akışıdır). Ana thread'de çağrılmalı.
+    func updateUsage(_ usage: SessionUsage, forSession sessionId: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        sessions[index].usage = usage
+    }
+
+    /// UsageReader'ın canlı JSONL rate-limit izi için limit sinyali uygular
+    /// (Notification tabanlı tespit handle(_:) içindedir). Ana thread'de çağrılmalı.
+    func applyLimitSignal(toSession sessionId: String) {
+        guard let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
+        cancelPendingDoneWork(for: sessionId)
+        let previousState = sessions[index].state
+        sessions[index].state = SessionStateMachine.applyLimitSignal(state: previousState)
+        if previousState != .limit, sessions[index].limitResetAt == nil {
+            sessions[index].limitResetAt = LimitDetector.estimateReset(
+                windowStart: sessions[index].startedAt,
+                now: now()
+            )
+        }
     }
 
     /// lastActivity'si eşiği aşan oturumları stale işaretler. Timer ve testler çağırır.

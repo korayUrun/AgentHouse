@@ -113,3 +113,4 @@ açık). Projenin birincil getirisi portfolyo/görünürlük; gelecekteki paral�
 - Maskot ve tema paketleri
 - Resmi limit yüzdeleri (Keychain'de kullanıcı kimliğiyle)
 - Activity timeline, akıllı bildirim kuralları
+- Maskot etkileşimi: panel/kart sallanınca maskotun "çıldırma" animasyonu oynaması

@@ -29,6 +29,15 @@ struct SessionCardView: View {
                     .lineLimit(1)
             }
 
+            // Maliyet lokal ve yaklaşık hesaplandığı için "~" ile tahmin olarak sunulur (ADR-010).
+            if let usage = session.usage, usage.totalTokens > 0 {
+                Text(usage.compactDisplayText)
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
             // Text(_, style: .relative) her ekran karesinde SwiftUI render'ı
             // uyandırdığı için seyrek periyodik tik + formatter kullanılır
             // (her tik kart layout'unu yeniden çalıştırıyor; 10 sn yeterli).
@@ -83,6 +92,29 @@ struct SessionCardView: View {
     }
 }
 
+/// Usage'ın kart üzerindeki kompakt metni. UI katmanına aittir; Core biçimlendirme bilmez.
+extension SessionUsage {
+    /// "42K tok · ~$1.80" biçiminde tek satır; maliyet yalnızca anlamlı büyüklükteyse eklenir.
+    var compactDisplayText: String {
+        var text = "\(Self.compactTokenText(totalTokens)) tok"
+        if estimatedCostUSD >= 0.01 {
+            text += String(format: " · ~$%.2f", estimatedCostUSD)
+        }
+        return text
+    }
+
+    private static func compactTokenText(_ count: Int) -> String {
+        switch count {
+        case ..<1_000:
+            return "\(count)"
+        case ..<1_000_000:
+            return String(format: "%.0fK", Double(count) / 1_000)
+        default:
+            return String(format: "%.1fM", Double(count) / 1_000_000)
+        }
+    }
+}
+
 /// SessionState'in panel üzerindeki görsel dili. UI katmanına aittir; Core bu
 /// eşlemeyi bilmez.
 extension SessionState {
@@ -121,6 +153,13 @@ extension SessionState {
                 lastActivity: Date().addingTimeInterval(-42),
                 isStale: false,
                 limitResetAt: state == .limit ? Date().addingTimeInterval(2 * 3600) : nil,
+                usage: SessionUsage(
+                    inputTokens: 4_000,
+                    outputTokens: 26_000,
+                    cacheCreationTokens: 2_000,
+                    cacheReadTokens: 10_000,
+                    estimatedCostUSD: 1.8
+                ),
                 startedAt: Date()
             ))
         }
