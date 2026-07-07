@@ -308,6 +308,13 @@ struct MascotRenderer {
         // Roket alevi: dış turuncu, iç sarı.
         static let flameOuter = CGColor(red: 1.0, green: 0.55, blue: 0.20, alpha: 0.95)
         static let flameInner = CGColor(red: 1.0, green: 0.86, blue: 0.38, alpha: 0.95)
+        // Özgürlük Heykeli (pixel art): bakır yeşili tonları.
+        static let statueLight = CGColor(red: 0.64, green: 0.85, blue: 0.73, alpha: 1)
+        static let statueMid = CGColor(red: 0.45, green: 0.72, blue: 0.60, alpha: 1)
+        static let statueDark = CGColor(red: 0.30, green: 0.54, blue: 0.44, alpha: 1)
+        static let statueLightMuted = CGColor(red: 0.78, green: 0.80, blue: 0.78, alpha: 1)
+        static let statueMidMuted = CGColor(red: 0.64, green: 0.68, blue: 0.65, alpha: 1)
+        static let statueDarkMuted = CGColor(red: 0.48, green: 0.53, blue: 0.50, alpha: 1)
         // Yarış arabası: kırmızı gövde, koyu lastik, açık cam.
         static let carTop = CGColor(red: 0.93, green: 0.33, blue: 0.28, alpha: 1)
         static let carBottom = CGColor(red: 0.74, green: 0.18, blue: 0.16, alpha: 1)
@@ -482,6 +489,70 @@ struct MascotRenderer {
             drawRocket(context, u, state: state)
         case .raceCar:
             drawRaceCar(context, u, state: state)
+        case .statueOfLiberty:
+            drawStatueOfLiberty(context, u, state: state)
+        }
+    }
+
+    /// Özgürlük Heykeli, pixel art stilinde: 24x24 hücrelik ızgara (hücre = 2 birim),
+    /// harf → renk eşlemeli satır haritasıyla çizilir. Meşale alevi state renk dilini
+    /// taşır (evdeki çatının karşılığı). Hücreler tam piksel sınırına oturduğu için
+    /// ayrıca antialiasing kapatmaya gerek kalmaz.
+    private static func drawStatueOfLiberty(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+        // . boş, L açık yeşil, M orta, D koyu, T meşale sapı, F alev (state tint).
+        let rows = [
+            "........................",
+            "........................",
+            "..................F.....",
+            ".................FFF....",
+            ".................FFF....",
+            "...........D......F....",
+            "........D..D..D..TTT....",
+            "........D..D..D...T.....",
+            ".......DDDDDDDDDD.T.....",
+            ".......MLLLLLLLLM.M.....",
+            ".......MLLLLLLLLM.M.....",
+            ".......MLLLLLLLLM.M.....",
+            ".......MLLLLLLLLM.M.....",
+            ".......MLLLLLLLLM.M.....",
+            ".......MLLLLLLLLMM......",
+            ".......MLLLLLLLLM.......",
+            ".......MLLLLLLLLM.......",
+            ".......MLLLLLLLLM.......",
+            "........MLLLLLLM........",
+            "....MMMMMMMMMMMMMMMM....",
+            "....MMMDMMMDMMMDMMMM....",
+            "........................",
+            "........................",
+            "........................",
+        ]
+        let muted = state == .limit
+        let light = muted ? Palette.statueLightMuted : Palette.statueLight
+        let mid = muted ? Palette.statueMidMuted : Palette.statueMid
+        let dark = muted ? Palette.statueDarkMuted : Palette.statueDark
+        let flame = Palette.tint[state] ?? Palette.flameInner
+
+        let cell = 2 * u
+        for (rowIndex, row) in rows.enumerated() {
+            for (colIndex, symbol) in row.enumerated() {
+                let color: CGColor?
+                switch symbol {
+                case "L": color = light
+                case "M": color = mid
+                case "D": color = dark
+                case "T": color = Palette.chimney
+                case "F": color = flame
+                default: color = nil
+                }
+                guard let color else { continue }
+                context.setFillColor(color)
+                context.fill(CGRect(
+                    x: CGFloat(colIndex) * cell,
+                    y: CGFloat(rowIndex) * cell,
+                    width: cell,
+                    height: cell
+                ))
+            }
         }
     }
 
@@ -861,6 +932,27 @@ struct MascotRenderer {
         case .lighthouse: drawLighthouseBeam(context, u)
         case .rocket: drawRocketFlame(context, u)
         case .raceCar: drawExhaust(context, u)
+        case .statueOfLiberty: drawTorchSparkles(context, u)
+        }
+    }
+
+    /// working (heykel): meşale çevresinde yanıp sönen piksel kıvılcımlar
+    /// (stille uyum için daire değil kare).
+    private func drawTorchSparkles(_ context: CGContext, _ u: CGFloat) {
+        let tint = Palette.tint[state] ?? Palette.flameInner
+        let positions: [(CGFloat, CGFloat)] = [(32, 4), (40, 7), (34, 11), (41, 2)]
+        for (index, position) in positions.enumerated() {
+            let phase = (time / 1.2 + Double(index) / Double(positions.count))
+                .truncatingRemainder(dividingBy: 1)
+            let alpha = phase < 0.5 ? phase * 2 : (1 - phase) * 2
+            let side = 1.6 * u
+            context.setFillColor(tint.copy(alpha: alpha * 0.85) ?? tint)
+            context.fill(CGRect(
+                x: position.0 * u - side / 2,
+                y: position.1 * u - side / 2,
+                width: side,
+                height: side
+            ))
         }
     }
 
@@ -971,6 +1063,8 @@ struct MascotRenderer {
             case .lighthouse: return CGPoint(x: 34, y: 6)
             case .rocket: return CGPoint(x: 34, y: 7)
             case .raceCar: return CGPoint(x: 36, y: 10)
+            // Meşale sağ üstte; "?" sol tarafta belirir.
+            case .statueOfLiberty: return CGPoint(x: 8, y: 10)
             }
         }()
         let bob = sin(time * 2 * .pi / 2.0)
@@ -1001,6 +1095,8 @@ struct MascotRenderer {
             case .lighthouse: return (CGPoint(x: 34, y: 9), 7)
             case .rocket: return (CGPoint(x: 34, y: 10), 8)
             case .raceCar: return (CGPoint(x: 35, y: 13), 11)
+            // Sağ üst meşalenin olduğu yer; zZz sol taraftan süzülür.
+            case .statueOfLiberty: return (CGPoint(x: 6, y: 14), 9)
             }
         }()
         for index in 0..<3 {

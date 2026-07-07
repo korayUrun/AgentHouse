@@ -621,6 +621,16 @@
         }
       }
     },
+    "Statue of Liberty" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Özgürlük Heykeli"
+          }
+        }
+      }
+    },
     "Status" : {
       "localizations" : {
         "tr" : {

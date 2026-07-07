@@ -129,6 +129,12 @@ ediyor; ileride hesap bağlantısıyla gelirse kartta "kalan" gösterimi o zaman
   başlatma). v1.0'da gerek görülmedi: macOS, Sistem Ayarları → Dil ve Bölge →
   Uygulamalar'dan uygulamaya özel dil seçimini zaten native sunuyor; README'de
   bu yol anlatılacak.
+- Düz metin soru tespiti: Claude soruyu AskUserQuestion tool'u yerine turu bitiren
+  düz metinle sorduğunda hook seviyesinde sinyal yok (Stop → done görünür; ~60 sn
+  sonra idle Notification'ı attention'a çeker). Erken yakalamak için Stop anında
+  transcript'teki son asistan mesajının soruyla bitip bitmediğine bakan bir
+  sezgisel düşünüldü ama ertelendi: retorik "?" işaretlerinde yanlış tetikler,
+  "emin değilsen state'i bozma" ilkesine aykırı (bkz. ADR-015).
 ## ADR-014 — Çoklu maskot karakteri (kural 6 revizyonu)
 **Durum:** Kabul edildi (Faz 9 içinde kurucu kararı).
 **Karar:** "Tek maskot" kuralı (CLAUDE.md kural 6) gevşetildi: maskot sistemi birden
