@@ -13,6 +13,9 @@ final class OverlayPanel: NSPanel {
     /// Bu panelin gösterdiği küme (ADR-017); pozisyon kaydı küme başına ayrıdır.
     let clusterId: String
 
+    /// Üzerine panel sürüklenirken "birleşecek" geri bildirimi (koordinatör yazar).
+    let mergeHighlight = MergeHighlightModel()
+
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "OverlayPanel")
     private let contentVisibility = OverlayContentVisibility()
 
@@ -55,6 +58,7 @@ final class OverlayPanel: NSPanel {
                 clusterStore: clusterStore,
                 clusterId: clusterId,
                 visibility: contentVisibility,
+                mergeHighlight: mergeHighlight,
                 onContentSizeChange: { [weak self] size in
                     self?.resizeToFit(size)
                 },
@@ -253,4 +257,10 @@ final class OverlayPanel: NSPanel {
 /// OverlayRootView bunu maskot animasyonlarını durdurmak için kullanır.
 final class OverlayContentVisibility: ObservableObject {
     @Published var isVisible = true
+}
+
+/// "Sürüklenen panel bunun üzerinde, bırakılırsa birleşir" sinyalini SwiftUI'ye
+/// taşıyan model; OverlayRootView içerik ölçeğiyle tepki verir.
+final class MergeHighlightModel: ObservableObject {
+    @Published var isTargeted = false
 }

@@ -30,18 +30,17 @@ final class OverlayCoordinator {
         // Ana panel her zaman var olur (boşken gizlenir); menü bar toggle'ı için çıpa.
         panels[ClusterStore.mainClusterId] = makePanel(clusterId: ClusterStore.mainClusterId)
 
-        sessionManager.$sessions
-            .map { $0.isEmpty }
-            .removeDuplicates()
-            .sink { [weak self] _ in self?.reconcilePanels() }
-            .store(in: &cancellables)
+        // @Published willSet anında yayınlar; store/manager'ı GÜNCEL haliyle okumak
+        // için teslimat ana kuyruğun bir sonraki tik'ine ertelenir.
         sessionManager.$sessions
             .map { Set($0.map(\.id)) }
             .removeDuplicates()
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.reconcilePanels() }
             .store(in: &cancellables)
         clusterStore.$clusterByProject
             .removeDuplicates()
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.reconcilePanels() }
             .store(in: &cancellables)
         NotificationCenter.default.addObserver(
@@ -143,7 +142,9 @@ final class OverlayCoordinator {
             let moved = notification.object as? OverlayPanel,
             panels[moved.clusterId] === moved
         else { return }
-        // didMove sürükleme boyunca akar; fare bırakılana kadar bekleyip tek karar ver.
+        // Sürükleme boyunca olası hedefi canlı vurgula (birleşeceği belli olsun);
+        // fare bırakılana kadar bekleyip birleşme kararını tek seferde ver.
+        highlightMergeTarget(for: moved)
         pendingMergeCheck?.cancel()
         let work = DispatchWorkItem { [weak self, weak moved] in
             guard let self, let moved else { return }
@@ -157,21 +158,41 @@ final class OverlayCoordinator {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
     }
 
-    /// Bırakılan panel başka bir panelle belirgin şekilde çakışıyorsa kümeleri birleştirir.
-    private func mergeIfDropped(_ moved: OverlayPanel) {
-        guard moved.isVisible else { return }
-        for (targetId, target) in panels
-        where target !== moved && target.isVisible && moved.frame.intersects(target.frame) {
-            let overlap = moved.frame.intersection(target.frame)
+    /// Sürüklenen panelin üzerinde durduğu hedefi işaretler; diğer vurguları temizler.
+    private func highlightMergeTarget(for moved: OverlayPanel) {
+        let target = mergeTarget(for: moved)
+        for panel in panels.values {
+            panel.mergeHighlight.isTargeted = (panel === target)
+        }
+    }
+
+    private func clearMergeHighlights() {
+        panels.values.forEach { $0.mergeHighlight.isTargeted = false }
+    }
+
+    /// Sürüklenen panelle yeterince (küçük olanın >%25'i) çakışan ilk görünür panel.
+    private func mergeTarget(for moved: OverlayPanel) -> OverlayPanel? {
+        guard moved.isVisible else { return nil }
+        for panel in panels.values
+        where panel !== moved && panel.isVisible && moved.frame.intersects(panel.frame) {
+            let overlap = moved.frame.intersection(panel.frame)
             let smallerArea = min(
                 moved.frame.width * moved.frame.height,
-                target.frame.width * target.frame.height
+                panel.frame.width * panel.frame.height
             )
-            guard smallerArea > 0, (overlap.width * overlap.height) / smallerArea > 0.25 else { continue }
-            logger.info("Panel bırakıldı; kümeler birleştiriliyor: \(moved.clusterId, privacy: .public) → \(targetId, privacy: .public)")
-            moved.clearStoredPosition()
-            clusterStore.merge(cluster: moved.clusterId, into: targetId)
-            return
+            if smallerArea > 0, (overlap.width * overlap.height) / smallerArea > 0.25 {
+                return panel
+            }
         }
+        return nil
+    }
+
+    /// Bırakılan panel bir hedefin üzerindeyse kümeleri birleştirir.
+    private func mergeIfDropped(_ moved: OverlayPanel) {
+        defer { clearMergeHighlights() }
+        guard let target = mergeTarget(for: moved) else { return }
+        logger.info("Panel bırakıldı; kümeler birleştiriliyor: \(moved.clusterId, privacy: .public) → \(target.clusterId, privacy: .public)")
+        moved.clearStoredPosition()
+        clusterStore.merge(cluster: moved.clusterId, into: target.clusterId)
     }
 }

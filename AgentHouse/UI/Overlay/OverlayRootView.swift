@@ -10,6 +10,8 @@ struct OverlayRootView: View {
     var clusterId: String = ClusterStore.mainClusterId
     /// Panel görünürlüğü; gizliyken maskot animasyonları durdurulur.
     @ObservedObject var visibility = OverlayContentVisibility()
+    /// Üzerine panel sürükleniyor sinyali; içerik hafif büyüyerek "birleşiriz" der.
+    @ObservedObject var mergeHighlight = MergeHighlightModel()
     /// İçeriğin ideal boyutu değiştiğinde çağrılır; OverlayPanel bununla kendini
     /// yeniden boyutlandırır.
     var onContentSizeChange: (CGSize) -> Void = { _ in }
@@ -41,6 +43,11 @@ struct OverlayRootView: View {
         content
             .padding(10)
             .fixedSize()
+            .scaleEffect(mergeHighlight.isTargeted ? 1.06 : 1)
+            .animation(
+                .spring(response: 0.28, dampingFraction: 0.55),
+                value: mergeHighlight.isTargeted
+            )
             .background(
                 GeometryReader { proxy in
                     Color.clear.preference(key: ContentSizePreferenceKey.self, value: proxy.size)
