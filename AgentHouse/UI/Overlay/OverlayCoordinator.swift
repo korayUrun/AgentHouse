@@ -102,21 +102,27 @@ final class OverlayCoordinator {
             userHidAllPanels = false
         }
 
+        var freshPanels: [OverlayPanel] = []
         for clusterId in neededClusterIds where panels[clusterId] == nil {
             let panel = makePanel(clusterId: clusterId)
             panels[clusterId] = panel
-            // Yeni ayrılan küme, kaydı yoksa ana panelin yanında belirir.
+            // Yeni ayrılan küme, kaydı yoksa ana panelin altında belirir.
             if !panel.hasStoredPosition, let main = panels[ClusterStore.mainClusterId] {
                 panel.placeTopLeft(NSPoint(
                     x: main.frame.origin.x + 36,
-                    y: main.frame.maxY - main.frame.height - 24
+                    y: main.frame.minY - 16
                 ))
+                freshPanels.append(panel)
             }
         }
 
         for (clusterId, panel) in panels {
             if neededClusterIds.contains(clusterId), !userHidAllPanels {
-                panel.show()
+                if freshPanels.contains(where: { $0 === panel }) {
+                    revealWithSlide(panel)
+                } else {
+                    panel.show()
+                }
             } else {
                 panel.hide()
                 if clusterId != ClusterStore.mainClusterId {
@@ -133,6 +139,24 @@ final class OverlayCoordinator {
             clusterId: clusterId,
             onSessionActivate: onSessionActivate
         )
+    }
+
+    /// Yeni ayrılan paneli yukarıdan hafifçe süzülerek ve solarak-belirerek gösterir
+    /// (ayırma "pat diye" değil, akışkan hissettirsin).
+    private func revealWithSlide(_ panel: OverlayPanel) {
+        var start = panel.frame
+        start.origin.y += 18
+        panel.alphaValue = 0
+        panel.setFrame(start, display: false)
+        panel.show()
+        var end = start
+        end.origin.y -= 18
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+            panel.animator().setFrame(end, display: true)
+        }
     }
 
     // MARK: - Sürükle-bırak birleşmesi
@@ -170,9 +194,11 @@ final class OverlayCoordinator {
         panels.values.forEach { $0.mergeHighlight.isTargeted = false }
     }
 
-    /// Sürüklenen panelle yeterince (küçük olanın >%25'i) çakışan ilk görünür panel.
+    /// Sürüklenen panelle yeterince (küçük olanın >%25'i) çakışan paneller arasından
+    /// EN ÇOK çakışanı seçer — kullanıcının üzerine bıraktığı panel kazanır.
     private func mergeTarget(for moved: OverlayPanel) -> OverlayPanel? {
         guard moved.isVisible else { return nil }
+        var best: (panel: OverlayPanel, ratio: CGFloat)?
         for panel in panels.values
         where panel !== moved && panel.isVisible && moved.frame.intersects(panel.frame) {
             let overlap = moved.frame.intersection(panel.frame)
@@ -180,11 +206,13 @@ final class OverlayCoordinator {
                 moved.frame.width * moved.frame.height,
                 panel.frame.width * panel.frame.height
             )
-            if smallerArea > 0, (overlap.width * overlap.height) / smallerArea > 0.25 {
-                return panel
+            guard smallerArea > 0 else { continue }
+            let ratio = (overlap.width * overlap.height) / smallerArea
+            if ratio > 0.25, ratio > (best?.ratio ?? 0) {
+                best = (panel, ratio)
             }
         }
-        return nil
+        return best?.panel
     }
 
     /// Bırakılan panel bir hedefin üzerindeyse kümeleri birleştirir.
