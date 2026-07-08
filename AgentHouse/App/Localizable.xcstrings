@@ -197,6 +197,16 @@
         }
       }
     },
+    "Detach into own panel" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kendi paneline ayır"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "tr" : {
@@ -233,6 +243,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İş bitti · %@"
+          }
+        }
+      }
+    },
+    "Gather all cards" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tüm kartları topla"
           }
         }
       }
@@ -577,6 +597,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sıfırlanma: ~%@"
+          }
+        }
+      }
+    },
+    "Return to main panel" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ana panele döndür"
           }
         }
       }

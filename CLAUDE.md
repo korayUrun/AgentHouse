@@ -57,7 +57,8 @@ AgentHouse/
 │   └── Focus/      TerminalFocuser.swift
 ├── UI/
 │   ├── Overlay/    OverlayPanel.swift (NSPanel), OverlayRootView.swift,
-│   │               SessionCardView.swift, DoneBanner.swift
+│   │               SessionCardView.swift, DoneBanner.swift,
+│   │               ClusterStore.swift, OverlayCoordinator.swift (ADR-017)
 │   ├── Mascot/     MascotAnimating.swift (protokol), PlaceholderMascotView.swift,
 │   │               RiveMascotView.swift (Faz 5)
 │   └── MenuBar/    MenuBarController.swift, SettingsView.swift

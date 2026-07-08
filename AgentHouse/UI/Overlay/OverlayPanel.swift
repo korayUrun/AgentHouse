@@ -10,13 +10,26 @@ final class OverlayPanel: NSPanel {
     private static let legacyOriginDefaultsKey = "overlayPanelOrigin"
     private static let defaultSize = NSSize(width: 320, height: 140)
 
+    /// Bu panelin gösterdiği küme (ADR-017); pozisyon kaydı küme başına ayrıdır.
+    let clusterId: String
+
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "OverlayPanel")
     private let contentVisibility = OverlayContentVisibility()
 
+    /// Ana küme eski (tekil) pozisyon anahtarını kullanmaya devam eder (migrasyon).
+    private var positionDefaultsKey: String {
+        clusterId == ClusterStore.mainClusterId
+            ? Self.topLeftDefaultsKey
+            : "\(Self.topLeftDefaultsKey).\(clusterId)"
+    }
+
     init(
         sessionManager: SessionManager,
+        clusterStore: ClusterStore,
+        clusterId: String = ClusterStore.mainClusterId,
         onSessionActivate: @escaping (Session) -> Void = { _ in }
     ) {
+        self.clusterId = clusterId
         super.init(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -39,6 +52,8 @@ final class OverlayPanel: NSPanel {
         let hostingView = NSHostingView(
             rootView: OverlayRootView(
                 sessionManager: sessionManager,
+                clusterStore: clusterStore,
+                clusterId: clusterId,
                 visibility: contentVisibility,
                 onContentSizeChange: { [weak self] size in
                     self?.resizeToFit(size)
@@ -163,7 +178,25 @@ final class OverlayPanel: NSPanel {
     // böylece panel büyüyüp küçülürken ekrandaki yeri sabit algılanır.
     @objc private func persistPosition() {
         let topLeft = NSPoint(x: frame.origin.x, y: frame.maxY)
-        UserDefaults.standard.set(NSStringFromPoint(topLeft), forKey: Self.topLeftDefaultsKey)
+        UserDefaults.standard.set(NSStringFromPoint(topLeft), forKey: positionDefaultsKey)
+    }
+
+    /// Paneli verilen üst-sol köşeye taşır ve kaydeder (koordinatör, yeni ayrılan
+    /// kümeyi kaynağının yanına yerleştirmek için kullanır).
+    func placeTopLeft(_ topLeft: NSPoint) {
+        setFrameOrigin(NSPoint(x: topLeft.x, y: topLeft.y - frame.height))
+        persistPosition()
+    }
+
+    /// Panelin kayıtlı bir pozisyonu var mı (yoksa koordinatör kaynak paneline göre yerleştirir)?
+    var hasStoredPosition: Bool {
+        UserDefaults.standard.string(forKey: positionDefaultsKey) != nil
+    }
+
+    /// Kümenin pozisyon kaydını siler (küme birleşince iz bırakmamak için).
+    func clearStoredPosition() {
+        guard clusterId != ClusterStore.mainClusterId else { return }
+        UserDefaults.standard.removeObject(forKey: positionDefaultsKey)
     }
 
     private func restorePosition() {
@@ -193,9 +226,10 @@ final class OverlayPanel: NSPanel {
     /// eski varsayılan boyut üzerinden üst-sola çevirir.
     private func storedTopLeft() -> NSPoint? {
         let defaults = UserDefaults.standard
-        if let stored = defaults.string(forKey: Self.topLeftDefaultsKey) {
+        if let stored = defaults.string(forKey: positionDefaultsKey) {
             return NSPointFromString(stored)
         }
+        guard clusterId == ClusterStore.mainClusterId else { return nil }
         if let legacy = defaults.string(forKey: Self.legacyOriginDefaultsKey) {
             let origin = NSPointFromString(legacy)
             return NSPoint(x: origin.x, y: origin.y + Self.defaultSize.height)

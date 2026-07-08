@@ -159,6 +159,20 @@ saate güvenip bekliyor. ADR-013'ün ilkesiyle tutarlı: yanıltıcı tahmin
 göstermektense hiç göstermemek. `LimitDetector.estimateReset` ve
 `Session.limitResetAt` kodla birlikte kaldırıldı (YAGNI).
 
+## ADR-017 — Ayrılabilir maskot kümeleri (çoklu panel)
+**Durum:** Kabul edildi (Faz 9 içinde kurucu kararı).
+**Karar:** Kartlar kümelere ayrılabilir; her küme kendi overlay panelinde yaşar.
+Kartın sağ-tık menüsünden "kendi paneline ayır" / "ana panele döndür"; bir panel
+başka bir panelin üzerine sürüklenip bırakılınca kümeler birleşir; menü bardan
+"tüm kartları topla". Atama proje bazlıdır (cwd → küme, UserDefaults) ve kalıcıdır:
+ayrılan projenin sonraki oturumları da kendi panelinde, kayıtlı pozisyonunda açılır.
+Boş kümelerin panelleri gizlenir/yıkılır — hiç oturum yokken ekranda panel durmaz
+(otomatik gizlenme). OverlayCoordinator panel yaşam döngüsünün tek sahibidir.
+**Gerekçe:** Çok oturumla çalışan kullanıcı kartları ekranında istediği gibi
+konumlandırmak istiyor (örn. biri üstte, ikisi altta). Panel-başına-küme modeli,
+mevcut tek-panel mimarisinin (içeriğe göre boyutlanan NSPanel) çoğaltılmasıyla
+kuruldu; kart taşıma animasyonları SwiftUI insert/remove geçişleriyle verilir.
+
 ## Ertelenen fikirler (v1.0 sonrası, sırasız)
 - Panelden izin onaylama / Claude'a mesajla yönlendirme (gelecek paralı sürümün çekirdeği)
 - Gemini CLI / Codex CLI adapter'ları (capability protokolüyle)

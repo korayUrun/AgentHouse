@@ -4,9 +4,17 @@ import SwiftUI
 /// state etiketi ve son aktivite göstergesi. Maskot karakteri sağ-tık
 /// menüsünden değiştirilir; seçim projeye kaydedilir (ADR-014).
 struct SessionCardView: View {
+    /// Sağ-tık menüsündeki küme eylemi (ADR-017): ayır ya da ana panele döndür.
+    struct ClusterAction {
+        /// true → "kendi paneline ayır"; false → "ana panele döndür".
+        let isDetach: Bool
+        let perform: () -> Void
+    }
+
     let session: Session
     var mascotCharacter: MascotCharacter = .default
     var onSelectMascot: (MascotCharacter) -> Void = { _ in }
+    var clusterAction: ClusterAction? = nil
 
     var body: some View {
         VStack(spacing: 8) {
@@ -65,6 +73,18 @@ struct SessionCardView: View {
                 }
             } label: {
                 Text("Mascot")
+            }
+
+            if let clusterAction {
+                Button {
+                    clusterAction.perform()
+                } label: {
+                    if clusterAction.isDetach {
+                        Label("Detach into own panel", systemImage: "rectangle.on.rectangle")
+                    } else {
+                        Label("Return to main panel", systemImage: "rectangle.stack")
+                    }
+                }
             }
         }
     }

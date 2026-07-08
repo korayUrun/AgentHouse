@@ -4,6 +4,10 @@ import SwiftUI
 /// ve içeriğin ideal boyutunu panele bildirir (panel içeriğe göre boyutlanır).
 struct OverlayRootView: View {
     @ObservedObject var sessionManager: SessionManager
+    /// Kart → panel atamaları (ADR-017); bu panel yalnızca kendi kümesini gösterir.
+    @ObservedObject var clusterStore: ClusterStore
+    /// Bu panelin kümesi.
+    var clusterId: String = ClusterStore.mainClusterId
     /// Panel görünürlüğü; gizliyken maskot animasyonları durdurulur.
     @ObservedObject var visibility = OverlayContentVisibility()
     /// İçeriğin ideal boyutu değiştiğinde çağrılır; OverlayPanel bununla kendini
@@ -26,6 +30,13 @@ struct OverlayRootView: View {
     /// çok oturumda ekran genişliğini aşmasın.
     static let maxCardsPerRow = 5
 
+    /// Bu panelde görünen oturumlar: kümesi bu panele atananlar.
+    private var clusterSessions: [Session] {
+        sessionManager.sessions.filter {
+            clusterStore.clusterId(forProject: $0.projectKey) == clusterId
+        }
+    }
+
     var body: some View {
         content
             .padding(10)
@@ -38,7 +49,7 @@ struct OverlayRootView: View {
             .onPreferenceChange(ContentSizePreferenceKey.self, perform: onContentSizeChange)
             .animation(
                 .spring(response: 0.35, dampingFraction: 0.8),
-                value: sessionManager.sessions.map(\.id)
+                value: clusterSessions.map(\.id)
             )
             .environment(\.mascotAnimationsPaused, !visibility.isVisible)
             .onReceive(sessionManager.longTaskCompleted) { showBanner($0) }
@@ -46,7 +57,7 @@ struct OverlayRootView: View {
 
     @ViewBuilder
     private var content: some View {
-        if sessionManager.sessions.isEmpty {
+        if clusterSessions.isEmpty {
             Text("Waiting for sessions…")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -63,14 +74,15 @@ struct OverlayRootView: View {
                                 SessionCardView(
                                     session: session,
                                     mascotCharacter: mascotPreferences.character(
-                                        forProject: Self.projectKey(for: session)
+                                        forProject: session.projectKey
                                     ),
                                     onSelectMascot: { character in
                                         mascotPreferences.setCharacter(
                                             character,
-                                            forProject: Self.projectKey(for: session)
+                                            forProject: session.projectKey
                                         )
-                                    }
+                                    },
+                                    clusterAction: clusterAction(for: session)
                                 )
                                 .onTapGesture { onSessionActivate(session) }
                                 if let banner = doneBanners[session.id] {
@@ -87,16 +99,23 @@ struct OverlayRootView: View {
         }
     }
 
-    /// Maskot tercihinin bağlandığı proje anahtarı: cwd (kalıcı ve benzersiz);
-    /// cwd bilinmiyorsa proje adına düşer, o da yoksa tercih kaydedilmez.
-    private static func projectKey(for session: Session) -> String? {
-        if let cwd = session.cwd, !cwd.isEmpty { return cwd }
-        return session.projectName == "?" ? nil : session.projectName
+    /// Kartın sağ-tık küme eylemi: ana kümedeyse "kendi paneline ayır",
+    /// ayrıksa "ana panele döndür". Anahtarsız oturum taşınamaz (nil).
+    private func clusterAction(for session: Session) -> SessionCardView.ClusterAction? {
+        guard let projectKey = session.projectKey else { return nil }
+        if clusterId == ClusterStore.mainClusterId {
+            return SessionCardView.ClusterAction(isDetach: true) {
+                clusterStore.detach(project: projectKey)
+            }
+        }
+        return SessionCardView.ClusterAction(isDetach: false) {
+            clusterStore.returnToMain(project: projectKey)
+        }
     }
 
     /// Oturumları satır başına en fazla `maxCardsPerRow` kart olacak şekilde böler.
     private var sessionRows: [[Session]] {
-        let sessions = sessionManager.sessions
+        let sessions = clusterSessions
         return stride(from: 0, to: sessions.count, by: Self.maxCardsPerRow).map {
             Array(sessions[$0..<min($0 + Self.maxCardsPerRow, sessions.count)])
         }
@@ -126,8 +145,11 @@ private struct ContentSizePreferenceKey: PreferenceKey {
 }
 
 #Preview("3 oturum") {
-    OverlayRootView(sessionManager: .previewWithThreeSessions)
-        .padding()
+    OverlayRootView(
+        sessionManager: .previewWithThreeSessions,
+        clusterStore: ClusterStore(defaults: UserDefaults(suiteName: "preview")!)
+    )
+    .padding()
 }
 
 private extension SessionManager {

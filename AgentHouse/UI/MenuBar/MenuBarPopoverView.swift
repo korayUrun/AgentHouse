@@ -7,6 +7,7 @@ struct MenuBarPopoverView: View {
     /// Panelin o anki görünürlüğü; buton etiketi popover her açılışında tazelenir.
     var isPanelVisible: () -> Bool = { true }
     var togglePanel: () -> Void = {}
+    var gatherAllCards: () -> Void = {}
     var openSettings: () -> Void = {}
 
     @State private var panelVisible = true
@@ -40,6 +41,9 @@ struct MenuBarPopoverView: View {
             ) {
                 togglePanel()
                 panelVisible = isPanelVisible()
+            }
+            actionButton("Gather all cards", systemImage: "rectangle.stack") {
+                gatherAllCards()
             }
             actionButton("Settings…", systemImage: "gearshape") {
                 openSettings()

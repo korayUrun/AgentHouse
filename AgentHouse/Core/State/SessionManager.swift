@@ -27,6 +27,15 @@ struct Session: Identifiable, Equatable {
     let startedAt: Date
 }
 
+extension Session {
+    /// Kalıcı proje tercihleri (maskot, küme) için anahtar: cwd (kalıcı ve benzersiz);
+    /// cwd bilinmiyorsa proje adına düşer, o da yoksa nil (tercih kaydedilmez).
+    var projectKey: String? {
+        if let cwd, !cwd.isEmpty { return cwd }
+        return projectName == "?" ? nil : projectName
+    }
+}
+
 /// Eşiği aşan bir işin bittiği bilgisi; DoneBanner ve isteğe bağlı sistem bildirimi bunu dinler.
 struct LongTaskCompletion: Identifiable, Equatable {
     let id = UUID()

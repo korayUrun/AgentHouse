@@ -5,7 +5,7 @@ import os
 /// Uygulama yaşam döngüsünü yöneten delegate; overlay paneli, event sunucusunu,
 /// menü bar denetleyicisini, ayarlar ve onboarding pencerelerini ayağa kaldırır.
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var overlayPanel: OverlayPanel?
+    private var overlayCoordinator: OverlayCoordinator?
     private var menuBarController: MenuBarController?
     private var eventServer: EventServer?
     private var sessionManager: SessionManager?
@@ -34,13 +34,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         manager.startStaleMonitoring()
         sessionManager = manager
 
-        let panel = OverlayPanel(
+        let coordinator = OverlayCoordinator(
             sessionManager: manager,
+            clusterStore: ClusterStore(),
             onSessionActivate: { [terminalFocuser] session in
                 terminalFocuser.focusSession(bundleId: session.sourceBundleId, cwd: session.cwd)
             }
         )
-        overlayPanel = panel
+        overlayCoordinator = coordinator
 
         let logStore = EventLogStore()
         eventLogStore = logStore
@@ -73,11 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindowController = SettingsWindowController(actions: makeSettingsActions())
 
         menuBarController = MenuBarController(
-            overlayPanel: panel,
+            overlayCoordinator: coordinator,
             sessionManager: manager,
             openSettings: { [weak self] in self?.settingsWindowController?.show() }
         )
-        panel.show()
 
         onboardingWindowController = OnboardingWindowController { [weak self] in
             self?.installHooksQuietly()
@@ -190,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         actions.hooksInstalled = { HookInstaller().isInstalled() }
         actions.applyPort = { [weak self] port in self?.applyPort(port) }
         actions.currentPort = { EventServer.configuredPort() }
-        actions.resetPanelPosition = { [weak self] in self?.overlayPanel?.resetPosition() }
+        actions.resetPanelPosition = { [weak self] in self?.overlayCoordinator?.resetLayout() }
         actions.setBannerThreshold = { [weak self] threshold in
             UserDefaults.standard.set(threshold, forKey: SessionManager.longTaskThresholdDefaultsKey)
             self?.sessionManager?.setLongTaskThreshold(threshold)

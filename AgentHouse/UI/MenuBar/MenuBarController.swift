@@ -7,7 +7,7 @@ final class MenuBarController: NSObject {
     private let popover: NSPopover
 
     init(
-        overlayPanel: OverlayPanel,
+        overlayCoordinator: OverlayCoordinator,
         sessionManager: SessionManager,
         openSettings: @escaping () -> Void
     ) {
@@ -21,8 +21,9 @@ final class MenuBarController: NSObject {
         popover.contentViewController = NSHostingController(
             rootView: MenuBarPopoverView(
                 sessionManager: sessionManager,
-                isPanelVisible: { overlayPanel.isVisible },
-                togglePanel: { overlayPanel.toggleVisibility() },
+                isPanelVisible: { overlayCoordinator.isAnyPanelVisible },
+                togglePanel: { overlayCoordinator.toggleAllPanels() },
+                gatherAllCards: { overlayCoordinator.gatherAllCards() },
                 openSettings: { [weak self] in
                     self?.popover.performClose(nil)
                     openSettings()
