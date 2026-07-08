@@ -21,11 +21,9 @@ struct Session: Identifiable, Equatable {
     var isStale: Bool
     /// Süregelen working turunun başladığı an (done banner eşiği için); tur bitince temizlenir.
     var workingSince: Date? = nil
-    /// limit state'indeyken tahmini reset anı; çalışma devam edince temizlenir.
-    var limitResetAt: Date? = nil
     /// UsageReader'dan gelen birikmiş token/maliyet; transcript izlenemiyorsa nil.
     var usage: SessionUsage? = nil
-    /// Oturum kartının oluşturulduğu an (sıralama ve limit penceresi tahmini için).
+    /// Oturum kartının oluşturulduğu an (sıralama için).
     let startedAt: Date
 }
 
@@ -190,7 +188,7 @@ final class SessionManager: ObservableObject {
         }
     }
 
-    /// State geçişine eşlik eden takip alanlarını (workingSince, limitResetAt) günceller;
+    /// State geçişine eşlik eden takip alanlarını (workingSince) günceller;
     /// eşiği aşan bir iş bittiyse yayınlanacak LongTaskCompletion'ı döndürür.
     private func updateTracking(
         _ session: inout Session,
@@ -203,11 +201,6 @@ final class SessionManager: ObservableObject {
             if session.workingSince == nil {
                 session.workingSince = timestamp
             }
-            session.limitResetAt = nil
-        case .limit:
-            if previousState != .limit, session.limitResetAt == nil {
-                session.limitResetAt = LimitDetector.estimateReset(windowStart: session.startedAt, now: timestamp)
-            }
         case .done:
             defer { session.workingSince = nil }
             if let since = session.workingSince, timestamp.timeIntervalSince(since) >= longTaskThreshold {
@@ -219,8 +212,7 @@ final class SessionManager: ObservableObject {
             }
         case .idle:
             session.workingSince = nil
-            session.limitResetAt = nil
-        case .attention, .questioning:
+        case .limit, .attention, .questioning:
             // Bekleme araları (izin/soru) turu bölmesin diye workingSince korunur.
             break
         }
@@ -239,14 +231,7 @@ final class SessionManager: ObservableObject {
     func applyLimitSignal(toSession sessionId: String) {
         guard let index = sessions.firstIndex(where: { $0.id == sessionId }) else { return }
         cancelPendingDoneWork(for: sessionId)
-        let previousState = sessions[index].state
-        sessions[index].state = SessionStateMachine.applyLimitSignal(state: previousState)
-        if previousState != .limit, sessions[index].limitResetAt == nil {
-            sessions[index].limitResetAt = LimitDetector.estimateReset(
-                windowStart: sessions[index].startedAt,
-                now: now()
-            )
-        }
+        sessions[index].state = SessionStateMachine.applyLimitSignal(state: sessions[index].state)
     }
 
     /// lastActivity'si eşiği aşan oturumları stale işaretler. Timer ve testler çağırır.

@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let panel = OverlayPanel(
             sessionManager: manager,
             onSessionActivate: { [terminalFocuser] session in
-                terminalFocuser.focusApplication(bundleId: session.sourceBundleId)
+                terminalFocuser.focusSession(bundleId: session.sourceBundleId, cwd: session.cwd)
             }
         )
         overlayPanel = panel

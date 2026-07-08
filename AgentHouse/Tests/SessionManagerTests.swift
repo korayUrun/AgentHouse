@@ -276,16 +276,14 @@ final class SessionManagerTests: XCTestCase {
 
     // MARK: - Limit tespiti
 
-    func testLimitNotificationMovesSessionToLimitWithResetEstimate() {
+    func testLimitNotificationMovesSessionToLimit() {
         let manager = makeManager()
-        let sessionStart = currentDate
         manager.handle(event("SessionStart"))
         manager.handle(event("UserPromptSubmit"))
         currentDate = currentDate.addingTimeInterval(3600)
         manager.handle(event("Notification", message: "Claude usage limit reached."))
 
         XCTAssertEqual(manager.sessions[0].state, .limit)
-        XCTAssertEqual(manager.sessions[0].limitResetAt, sessionStart.addingTimeInterval(5 * 3600))
     }
 
     func testStopAfterLimitKeepsLimitStateAndDoesNotCelebrate() {
@@ -302,7 +300,7 @@ final class SessionManagerTests: XCTestCase {
         XCTAssertTrue(completions.isEmpty)
     }
 
-    func testResumingWorkClearsLimitEstimate() {
+    func testResumingWorkExitsLimit() {
         let manager = makeManager()
         manager.handle(event("SessionStart"))
         manager.handle(event("Notification", message: "Claude usage limit reached."))
@@ -310,7 +308,6 @@ final class SessionManagerTests: XCTestCase {
 
         manager.handle(event("UserPromptSubmit"))
         XCTAssertEqual(manager.sessions[0].state, .working)
-        XCTAssertNil(manager.sessions[0].limitResetAt)
     }
 
     func testOrdinaryNotificationStillYieldsAttention() {
@@ -319,7 +316,6 @@ final class SessionManagerTests: XCTestCase {
         manager.handle(event("Notification", message: "Claude needs your permission to use Bash"))
 
         XCTAssertEqual(manager.sessions[0].state, .attention)
-        XCTAssertNil(manager.sessions[0].limitResetAt)
     }
 
     // MARK: - Usage entegrasyonu (Faz 7)
@@ -341,9 +337,8 @@ final class SessionManagerTests: XCTestCase {
         XCTAssertTrue(manager.sessions.isEmpty)
     }
 
-    func testApplyLimitSignalMovesSessionToLimitWithResetEstimate() {
+    func testApplyLimitSignalMovesSessionToLimit() {
         let manager = makeManager()
-        let sessionStart = currentDate
         manager.handle(event("SessionStart"))
         manager.handle(event("UserPromptSubmit"))
 
@@ -351,7 +346,6 @@ final class SessionManagerTests: XCTestCase {
         manager.applyLimitSignal(toSession: "s1")
 
         XCTAssertEqual(manager.sessions[0].state, .limit)
-        XCTAssertEqual(manager.sessions[0].limitResetAt, sessionStart.addingTimeInterval(5 * 3600))
     }
 
     func testApplyLimitSignalForUnknownSessionIsIgnored() {

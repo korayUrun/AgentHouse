@@ -1,7 +1,7 @@
 import XCTest
 @testable import AgentHouse
 
-/// LimitDetector'ın mesaj sınıflandırmasını ve 5 saatlik pencereden reset tahminini doğrular.
+/// LimitDetector'ın mesaj sınıflandırmasını doğrular (reset tahmini ADR-016 ile kaldırıldı).
 final class LimitDetectorTests: XCTestCase {
     // MARK: - Limit mesajı tespiti
 
@@ -33,41 +33,5 @@ final class LimitDetectorTests: XCTestCase {
             XCTAssertFalse(LimitDetector.isLimitNotification(message), "Limit sayılmamalıydı: \(message)")
         }
         XCTAssertFalse(LimitDetector.isLimitNotification(nil))
-    }
-
-    // MARK: - Reset tahmini
-
-    func testResetIsEndOfFirstWindowWhenStillInside() {
-        let start = Date(timeIntervalSince1970: 1_000_000)
-        let now = start.addingTimeInterval(2 * 3600)
-        XCTAssertEqual(
-            LimitDetector.estimateReset(windowStart: start, now: now),
-            start.addingTimeInterval(5 * 3600)
-        )
-    }
-
-    func testResetRollsForwardWhenWindowStartIsOld() {
-        // Oturum 7 saattir açıksa ilk pencere geçmiştir; sonraki sınır (10. saat) dönmeli.
-        let start = Date(timeIntervalSince1970: 1_000_000)
-        let now = start.addingTimeInterval(7 * 3600)
-        XCTAssertEqual(
-            LimitDetector.estimateReset(windowStart: start, now: now),
-            start.addingTimeInterval(10 * 3600)
-        )
-    }
-
-    func testResetOnExactBoundaryMovesToNextWindow() {
-        let start = Date(timeIntervalSince1970: 1_000_000)
-        let now = start.addingTimeInterval(5 * 3600)
-        XCTAssertEqual(
-            LimitDetector.estimateReset(windowStart: start, now: now),
-            start.addingTimeInterval(10 * 3600)
-        )
-    }
-
-    func testResetIsAlwaysInTheFuture() {
-        let start = Date(timeIntervalSince1970: 1_000_000)
-        let now = start.addingTimeInterval(123 * 3600)
-        XCTAssertGreaterThan(LimitDetector.estimateReset(windowStart: start, now: now), now)
     }
 }

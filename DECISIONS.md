@@ -118,23 +118,6 @@ tahmin göstermektense hiç göstermemek tercih edildi.
 **Sonuç:** "Resmi limit yüzdeleri" ertelenen fikirler listesinde durmaya devam
 ediyor; ileride hesap bağlantısıyla gelirse kartta "kalan" gösterimi o zaman düşünülür.
 
-## Ertelenen fikirler (v1.0 sonrası, sırasız)
-- Panelden izin onaylama / Claude'a mesajla yönlendirme (gelecek paralı sürümün çekirdeği)
-- Gemini CLI / Codex CLI adapter'ları (capability protokolüyle)
-- Maskot ve tema paketleri
-- Resmi limit yüzdeleri (Keychain'de kullanıcı kimliğiyle)
-- Activity timeline, akıllı bildirim kuralları
-- Maskot etkileşimi: panel/kart sallanınca maskotun "çıldırma" animasyonu oynaması
-- Ayarlar'dan uygulama içi dil seçimi (Sistem/EN/TR — `AppleLanguages` + yeniden
-  başlatma). v1.0'da gerek görülmedi: macOS, Sistem Ayarları → Dil ve Bölge →
-  Uygulamalar'dan uygulamaya özel dil seçimini zaten native sunuyor; README'de
-  bu yol anlatılacak.
-- Düz metin soru tespiti: Claude soruyu AskUserQuestion tool'u yerine turu bitiren
-  düz metinle sorduğunda hook seviyesinde sinyal yok (Stop → done görünür; ~60 sn
-  sonra idle Notification'ı attention'a çeker). Erken yakalamak için Stop anında
-  transcript'teki son asistan mesajının soruyla bitip bitmediğine bakan bir
-  sezgisel düşünüldü ama ertelendi: retorik "?" işaretlerinde yanlış tetikler,
-  "emin değilsen state'i bozma" ilkesine aykırı (bkz. ADR-015).
 ## ADR-014 — Çoklu maskot karakteri (kural 6 revizyonu)
 **Durum:** Kabul edildi (Faz 9 içinde kurucu kararı).
 **Karar:** "Tek maskot" kuralı (CLAUDE.md kural 6) gevşetildi: maskot sistemi birden
@@ -164,3 +147,33 @@ asıl değer önerisi olan "hangi oturum benden ne bekliyor?" sorusunun en sık 
 Tool adı sinyali, Notification metni ayrıştırmaya (kırılgan, dile bağlı) gerek
 bırakmaz. Tespit best-effort'tur: hook AskUserQuestion için tetiklenmezse davranış
 bugünkü gibi kalır (Notification → attention), hiçbir şey bozulmaz.
+
+## ADR-016 — Limit reset tahmini kaldırıldı
+**Durum:** Kabul edildi (Faz 9 içinde kurucu kararı).
+**Karar:** Karttaki "Resets: ~14:30" tahmini kaldırıldı. `limit` state kalır —
+girişi somut kanıta dayalıdır (transcript'te gerçek rate-limit hata izi veya
+limit içerikli Notification); bulanık olan yalnızca reset SAATİYDİ.
+**Gerekçe:** 5 saatlik pencerenin gerçek başlangıcı lokal olarak bilinemez
+(oturum başlangıcı ≠ pencere başlangıcı); tahmin yanılttığında kullanıcı yanlış
+saate güvenip bekliyor. ADR-013'ün ilkesiyle tutarlı: yanıltıcı tahmin
+göstermektense hiç göstermemek. `LimitDetector.estimateReset` ve
+`Session.limitResetAt` kodla birlikte kaldırıldı (YAGNI).
+
+## Ertelenen fikirler (v1.0 sonrası, sırasız)
+- Panelden izin onaylama / Claude'a mesajla yönlendirme (gelecek paralı sürümün çekirdeği)
+- Gemini CLI / Codex CLI adapter'ları (capability protokolüyle)
+- Maskot ve tema paketleri
+- Resmi limit yüzdeleri (Keychain'de kullanıcı kimliğiyle)
+- Activity timeline, akıllı bildirim kuralları
+- Maskot etkileşimi: panel/kart sallanınca maskotun "çıldırma" animasyonu oynaması
+- Ayarlar'dan uygulama içi dil seçimi (Sistem/EN/TR — `AppleLanguages` + yeniden
+  başlatma). v1.0'da gerek görülmedi: macOS, Sistem Ayarları → Dil ve Bölge →
+  Uygulamalar'dan uygulamaya özel dil seçimini zaten native sunuyor; README'de
+  bu yol anlatılacak.
+- Düz metin soru tespiti: Claude soruyu AskUserQuestion tool'u yerine turu bitiren
+  düz metinle sorduğunda hook seviyesinde sinyal yok (Stop → done görünür; ~60 sn
+  sonra idle Notification'ı attention'a çeker). Erken yakalamak için Stop anında
+  transcript'teki son asistan mesajının soruyla bitip bitmediğine bakan bir
+  sezgisel düşünüldü ama ertelendi: retorik "?" işaretlerinde yanlış tetikler,
+  "emin değilsen state'i bozma" ilkesine aykırı (bkz. ADR-015).
+

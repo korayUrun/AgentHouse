@@ -80,8 +80,8 @@ AgentHouse/
 | SessionEnd | kartı kaldır |
 
 Limit tespiti: UsageReader JSONL'de rate-limit izini görürse veya Notification
-içeriği limit belirtiyorsa `limit` state + reset tahmini (5 saatlik pencere
-başlangıcından hesapla). Bu tespit best-effort'tur; emin değilsen state'i bozma.
+içeriği limit belirtiyorsa `limit` state. Reset saati TAHMİN EDİLMEZ ve
+gösterilmez (ADR-016). Bu tespit best-effort'tur; emin değilsen state'i bozma.
 
 ## Kod stili
 

@@ -390,7 +390,8 @@ struct MascotRenderer {
     // yapmamak için (karakter, state) başına bir kez 2x bitmap'e çizilir ve
     // her karede tek blit yapılır (profillemede ripc_DrawShading sıcak çıkmıştı).
     private enum Sprites {
-        static let pixelScale: CGFloat = 2
+        // 64pt kart maskotu @2x = 128 px ister; 48 birim × 3 = 144 px ile keskin kalır.
+        static let pixelScale: CGFloat = 3
 
         struct Key: Hashable {
             let character: MascotCharacter

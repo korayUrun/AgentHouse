@@ -8,6 +8,16 @@ import os
 struct TerminalFocuser {
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "TerminalFocuser")
 
+    /// Klasör argümanıyla açıldığında o klasörün MEVCUT penceresini öne getiren editörler.
+    /// Bu davranış editörün kendisinden gelir; Accessibility izni gerekmez.
+    private static let folderAwareEditorBundleIds: Set<String> = [
+        "com.microsoft.VSCode",
+        "com.microsoft.VSCodeInsiders",
+        "com.vscodium",
+        "com.todesktop.230313mzl4w4u92", // Cursor
+        "com.exafunction.windsurf",
+    ]
+
     /// O an önplandaki uygulamanın bundle id'si; önplan biz isek veya okunamıyorsa nil.
     func frontmostApplicationBundleId() -> String? {
         guard
@@ -15,6 +25,34 @@ struct TerminalFocuser {
             bundleId != Bundle.main.bundleIdentifier
         else { return nil }
         return bundleId
+    }
+
+    /// Oturumun kaynağını öne getirir: kaynak klasör-bilinçli bir editörse (VS Code
+    /// ailesi) cwd'yi o editörle "açarak" doğru PENCERENİN odaklanmasını sağlar;
+    /// değilse uygulama düzeyinde aktive eder.
+    @discardableResult
+    func focusSession(bundleId: String?, cwd: String?) -> Bool {
+        if
+            let bundleId,
+            let cwd, !cwd.isEmpty,
+            Self.folderAwareEditorBundleIds.contains(bundleId),
+            let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+            FileManager.default.fileExists(atPath: cwd)
+        {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.open(
+                [URL(fileURLWithPath: cwd, isDirectory: true)],
+                withApplicationAt: appURL,
+                configuration: configuration
+            ) { [logger] _, error in
+                if let error {
+                    logger.info("Editörde klasör odaklama başarısız: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            return true
+        }
+        return focusApplication(bundleId: bundleId)
     }
 
     /// Verilen bundle id'ye sahip çalışan uygulamayı öne getirir; uygulama artık

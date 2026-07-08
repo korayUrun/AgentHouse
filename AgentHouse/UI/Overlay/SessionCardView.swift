@@ -13,7 +13,7 @@ struct SessionCardView: View {
             // attention puls halkası dahil tüm animasyon maskotun kendi içinde
             // (CPU bütçesi için SwiftUI animasyonu yerine CG çizimi).
             ActiveMascot(state: session.state, character: mascotCharacter)
-                .frame(width: 48, height: 48)
+                .frame(width: 64, height: 64)
 
             Text(session.projectName)
                 .font(.subheadline.weight(.semibold))
@@ -22,15 +22,6 @@ struct SessionCardView: View {
                 .frame(maxWidth: .infinity)
 
             stateBadge
-
-            // Limit tespiti best-effort olduğundan saat "~" ile tahmin olarak sunulur.
-            if session.state == .limit, let resetAt = session.limitResetAt {
-                Text("Resets: ~\(Self.timeFormatter.string(from: resetAt))")
-                    .font(.caption2)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
 
             // Text(_, style: .relative) her ekran karesinde SwiftUI render'ı
             // uyandırdığı için seyrek periyodik tik + formatter kullanılır
@@ -82,14 +73,6 @@ struct SessionCardView: View {
     private static let relativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
-        return formatter
-    }()
-
-    /// Limit reset tahmini için "14:30" biçiminde kısa saat.
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
         return formatter
     }()
 
@@ -166,7 +149,6 @@ extension SessionState {
                 state: state,
                 lastActivity: Date().addingTimeInterval(-42),
                 isStale: false,
-                limitResetAt: state == .limit ? Date().addingTimeInterval(2 * 3600) : nil,
                 startedAt: Date()
             ))
         }
