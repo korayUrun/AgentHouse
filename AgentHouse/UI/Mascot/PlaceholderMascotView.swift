@@ -37,6 +37,9 @@ struct MascotPose {
     var eyeOpenness: CGFloat = 1
     /// -1..1 bakış yönü (gözler yatay kayar).
     var eyeLookX: CGFloat = 0
+    /// -1..1 turntable dönüş illüzyonu (2.5D): gövde yatayda daralır, yüz o yöne
+    /// kayar, tepe ışığı ters yöne süzülür. 0 = tam karşıdan.
+    var spin: CGFloat = 0
     /// done konfetisinin ilerlemesi (0..1); aralık dışında konfeti çizilmez.
     var celebration: CGFloat = 0
     /// working'de baca dumanı aktif mi.
@@ -49,10 +52,12 @@ struct MascotPose {
     init(state: SessionState, time t: TimeInterval, timeSinceStateChange dt: TimeInterval) {
         switch state {
         case .idle:
-            // Yavaş nefes, ara sıra göz kırpma, etrafa bakınma.
+            // Yavaş nefes, ara sıra göz kırpma, etrafa bakınma; bakışla aynı fazda
+            // yavaş turntable dönüşü (2.5D).
             squash = 1 + 0.02 * sin(t * 2 * .pi / 3.2)
             eyeOpenness = t.truncatingRemainder(dividingBy: 3.7) < 0.14 ? 0.1 : 1
             eyeLookX = sin(t * 2 * .pi / 7.5) * 0.6
+            spin = sin(t * 2 * .pi / 7.5) * 0.5
 
         case .working:
             // Hızlı, ufak tempolu zıplama + odaklı kısık gözlerle sağa sola tarama.
@@ -61,6 +66,7 @@ struct MascotPose {
             squash = 1 - 0.03 * bob
             eyeOpenness = 0.7
             eyeLookX = sin(t * 2 * .pi / 0.8) * 0.8
+            spin = sin(t * 2 * .pi / 0.8) * 0.2
             isSmoking = true
 
         case .attention:
@@ -71,11 +77,13 @@ struct MascotPose {
             tilt = .pi / 45 * sin(t * 2 * .pi / 1.2)
 
         case .questioning:
-            // Meraklı bekleyiş: yana eğik kafa, iri gözlerle bakınma, yavaş nefes.
+            // Meraklı bekleyiş: yana eğik kafa, iri gözlerle bakınma, yavaş nefes;
+            // bakışla aynı fazda dönüş (2.5D).
             tilt = .pi / 30 * sin(t * 2 * .pi / 2.4)
             squash = 1 + 0.02 * sin(t * 2 * .pi / 2.8)
             eyeOpenness = 1.1
             eyeLookX = sin(t * 2 * .pi / 3.5) * 0.9
+            spin = sin(t * 2 * .pi / 3.5) * 0.5
             isQuestioning = true
 
         case .done:
@@ -359,6 +367,7 @@ struct MascotRenderer {
         static let smiley = make([Palette.smileyTop, Palette.smileyBottom])
         static let smileyMuted = make([Palette.smileyTopMuted, Palette.smileyBottomMuted])
         static let roofHighlight = make([CGColor(gray: 1, alpha: 0.30), CGColor(gray: 1, alpha: 0)])
+        static let movingLight = make([CGColor(gray: 1, alpha: 0.16), CGColor(gray: 1, alpha: 0)])
         static let shadow = make([CGColor(gray: 0, alpha: 0.22), CGColor(gray: 0, alpha: 0)])
         static let roof: [SessionState: CGGradient] = Dictionary(
             uniqueKeysWithValues: SessionState.allCases.compactMap { state in
@@ -398,6 +407,25 @@ struct MascotRenderer {
                 }
             }
             return result
+        }()
+
+        /// 2.5D gezen ışık lekesi (radyal beyaz gradyan), bir kez üretilir.
+        static let movingLight: CGImage? = {
+            let side = Int(34 * pixelScale)
+            guard
+                let bitmap = makeBitmap(width: side, height: side),
+                let gradient = Gradients.movingLight
+            else { return nil }
+            let center = CGPoint(x: CGFloat(side) / 2, y: CGFloat(side) / 2)
+            bitmap.drawRadialGradient(
+                gradient,
+                startCenter: center,
+                startRadius: 0,
+                endCenter: center,
+                endRadius: CGFloat(side) / 2,
+                options: []
+            )
+            return bitmap.makeImage()
         }()
 
         /// Yumuşak kenarlı elips zemin gölgesi (radyal gradyan), bir kez üretilir.
@@ -456,19 +484,24 @@ struct MascotRenderer {
             context.setAlpha(0.85)
         }
         // Squash & stretch ve eğim, karakterin taban çizgisinden (y=42) uygulanır
-        // ki zıplama fiziksel dursun.
+        // ki zıplama fiziksel dursun. 2.5D: zıplamada hafif perspektif büyümesi
+        // (kameraya yaklaşma) ve turntable dönüşünde yatay daralma.
         let anchor = CGPoint(x: 24 * u, y: 42 * u)
+        let perspective = 1 + pose.jumpHeight * 0.3
+        let spinScale = 1 - 0.12 * abs(pose.spin)
         context.translateBy(x: 0, y: -pose.jumpHeight * 48 * u)
         context.translateBy(x: anchor.x, y: anchor.y)
         context.rotate(by: pose.tilt)
-        context.scaleBy(x: 2 - pose.squash, y: pose.squash)
+        context.scaleBy(x: (2 - pose.squash) * perspective * spinScale, y: pose.squash * perspective)
         context.translateBy(x: -anchor.x, y: -anchor.y)
 
         if pose.isSmoking { drawWorkingEffect(context, u) }
         if pose.isSleeping { drawSleepZs(context, u) }
         if pose.isQuestioning { drawQuestionMark(context, u) }
         if let body = Sprites.body[Sprites.Key(character: character, state: state)] {
-            blit(body, in: CGRect(x: 0, y: 0, width: 48 * u, height: 48 * u), context: context)
+            let rect = CGRect(x: 0, y: 0, width: 48 * u, height: 48 * u)
+            blit(body, in: rect, context: context)
+            drawMovingLight(in: rect, context: context, u)
         } else {
             Self.drawBody(context, u, character: character, state: state)
         }
@@ -487,6 +520,25 @@ struct MascotRenderer {
         context.translateBy(x: rect.minX, y: rect.maxY)
         context.scaleBy(x: 1, y: -1)
         context.draw(image, in: CGRect(origin: .zero, size: rect.size))
+        context.restoreGState()
+    }
+
+    /// 2.5D gezen ışık: dönüşe ters yöne kayan yumuşak tepe ışığı. Karakter
+    /// dönerken ışığın sabit kalması hacim hissi verir. Maske klibi yerine
+    /// `.sourceAtop` blend kullanılır (yalnızca alfası dolu piksellere işler);
+    /// gradyan da kare başına değil bir kez rasterize edilir (CPU bütçesi).
+    private func drawMovingLight(in rect: CGRect, context: CGContext, _ u: CGFloat) {
+        guard let light = Sprites.movingLight else { return }
+        let diameter = 34 * u
+        let center = CGPoint(x: 24 * u - pose.spin * 7 * u, y: 18 * u)
+        context.saveGState()
+        context.setBlendMode(.sourceAtop)
+        context.draw(light, in: CGRect(
+            x: center.x - diameter / 2,
+            y: center.y - diameter / 2,
+            width: diameter,
+            height: diameter
+        ))
         context.restoreGState()
     }
 
@@ -995,13 +1047,18 @@ struct MascotRenderer {
         character == .smiley ? 1.5 : 1
     }
 
+    /// Yüzün turntable dönüşüyle kaydığı ofset (2.5D); göz ve ağız birlikte döner.
+    private func spinOffset(_ u: CGFloat) -> CGFloat {
+        pose.spin * 3 * u
+    }
+
     private func drawEyes(_ context: CGContext, _ u: CGFloat) {
         let scale = faceScale
         let openness = max(pose.eyeOpenness, 0.08)
         let eyeHeight = 4.6 * u * scale * openness
         context.setFillColor(Palette.eye)
         for centerX in [19.0, 29.0] {
-            let x = centerX * u + pose.eyeLookX * 1.5 * u
+            let x = centerX * u + pose.eyeLookX * 1.5 * u + spinOffset(u)
             let rect = CGRect(
                 x: x - 2.3 * u * scale,
                 y: 29 * u - eyeHeight / 2,
@@ -1014,7 +1071,7 @@ struct MascotRenderer {
             // Minik ışık yansıması gözü canlandırır.
             context.setFillColor(CGColor(gray: 1, alpha: 0.85))
             for centerX in [19.0, 29.0] {
-                let x = centerX * u + pose.eyeLookX * 1.5 * u
+                let x = centerX * u + pose.eyeLookX * 1.5 * u + spinOffset(u)
                 let highlight = CGRect(
                     x: x - 1.6 * u * scale,
                     y: 29 * u - 1.6 * u * scale * openness,
@@ -1028,7 +1085,7 @@ struct MascotRenderer {
 
     private func drawMouth(_ context: CGContext, _ u: CGFloat) {
         let scale = faceScale
-        let center = CGPoint(x: 24 * u, y: 35.5 * u)
+        let center = CGPoint(x: 24 * u + spinOffset(u), y: 35.5 * u)
         switch state {
         case .done, .idle:
             let width: CGFloat = (state == .done ? 8 : 5) * u * scale
