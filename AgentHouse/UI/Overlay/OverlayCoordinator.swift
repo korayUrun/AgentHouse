@@ -182,16 +182,34 @@ final class OverlayCoordinator {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
     }
 
-    /// Sürüklenen panelin üzerinde durduğu hedefi işaretler; diğer vurguları temizler.
+    /// Sürüklenen panelin üzerinde durduğu hedefi işaretler ve imleç konumunu hedef
+    /// panelin içerik uzayına çevirip iletir (kartların aralanması için); diğer
+    /// vurguları temizler.
     private func highlightMergeTarget(for moved: OverlayPanel) {
         let target = mergeTarget(for: moved)
         for panel in panels.values {
-            panel.mergeHighlight.isTargeted = (panel === target)
+            let isTarget = panel === target
+            if panel.mergeHighlight.isTargeted != isTarget {
+                panel.mergeHighlight.isTargeted = isTarget
+            }
+            if isTarget {
+                // Ekran (alt-sol) → pencere → içerik uzayı (üst-sol origin).
+                let inWindow = panel.convertPoint(fromScreen: NSEvent.mouseLocation)
+                panel.mergeHighlight.hoverPoint = CGPoint(
+                    x: inWindow.x,
+                    y: panel.frame.height - inWindow.y
+                )
+            } else if panel.mergeHighlight.hoverPoint != nil {
+                panel.mergeHighlight.hoverPoint = nil
+            }
         }
     }
 
     private func clearMergeHighlights() {
-        panels.values.forEach { $0.mergeHighlight.isTargeted = false }
+        for panel in panels.values {
+            panel.mergeHighlight.isTargeted = false
+            panel.mergeHighlight.hoverPoint = nil
+        }
     }
 
     /// Sürüklenen panelle yeterince (küçük olanın >%25'i) çakışan paneller arasından
@@ -215,12 +233,31 @@ final class OverlayCoordinator {
         return best?.panel
     }
 
-    /// Bırakılan panel bir hedefin üzerindeyse kümeleri birleştirir.
+    /// Bırakılan panel bir hedefin üzerindeyse kümeleri, kartlar bırakılan konuma
+    /// girecek şekilde birleştirir.
     private func mergeIfDropped(_ moved: OverlayPanel) {
         defer { clearMergeHighlights() }
         guard let target = mergeTarget(for: moved) else { return }
-        logger.info("Panel bırakıldı; kümeler birleştiriliyor: \(moved.clusterId, privacy: .public) → \(target.clusterId, privacy: .public)")
+
+        // Hedefin ve taşınanın o anki görüntü sırası; taşınan kartlar boşluğun
+        // açıldığı indekse girer.
+        let targetKeys = orderedProjectKeys(inCluster: target.clusterId)
+        let movedKeys = orderedProjectKeys(inCluster: moved.clusterId)
+        var newOrder = targetKeys
+        let index = min(max(target.mergeHighlight.insertionIndex ?? targetKeys.count, 0), targetKeys.count)
+        newOrder.insert(contentsOf: movedKeys, at: index)
+
+        logger.info("Panel bırakıldı; kümeler birleştiriliyor: \(moved.clusterId, privacy: .public) → \(target.clusterId, privacy: .public) @\(index)")
         moved.clearStoredPosition()
-        clusterStore.merge(cluster: moved.clusterId, into: target.clusterId)
+        clusterStore.merge(cluster: moved.clusterId, into: target.clusterId, order: newOrder)
+    }
+
+    /// Kümenin görüntü sırasındaki proje anahtarları (view ile aynı sıralamayı kullanır).
+    private func orderedProjectKeys(inCluster clusterId: String) -> [String] {
+        let sessions = sessionManager.sessions.filter {
+            clusterStore.clusterId(forProject: $0.projectKey) == clusterId
+        }
+        return clusterStore.orderedSessions(sessions, inCluster: clusterId)
+            .compactMap(\.projectKey)
     }
 }

@@ -260,7 +260,13 @@ final class OverlayContentVisibility: ObservableObject {
 }
 
 /// "Sürüklenen panel bunun üzerinde, bırakılırsa birleşir" sinyalini SwiftUI'ye
-/// taşıyan model; OverlayRootView içerik ölçeğiyle tepki verir.
+/// taşıyan model. Koordinatör hedefi ve hover noktasını yazar; view kartların
+/// arasında açılacak boşluğun indeksini hesaplayıp geri yazar, koordinatör
+/// bırakma anında bu indeksle kart sırasını kurar.
 final class MergeHighlightModel: ObservableObject {
     @Published var isTargeted = false
+    /// Sürüklenen panelin imleç konumu, hedef panel içerik uzayında (üst-sol origin).
+    @Published var hoverPoint: CGPoint?
+    /// Bırakılan kartların gireceği görüntü sırası indeksi (view hesaplar).
+    @Published var insertionIndex: Int?
 }

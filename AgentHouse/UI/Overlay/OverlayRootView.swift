@@ -32,18 +32,28 @@ struct OverlayRootView: View {
     /// çok oturumda ekran genişliğini aşmasın.
     static let maxCardsPerRow = 5
 
-    /// Bu panelde görünen oturumlar: kümesi bu panele atananlar.
+    /// Kart çerçevelerinin toplandığı koordinat uzayı adı (boşluk hesabı için).
+    private static let contentSpace = "overlayContent"
+
+    /// Kart id → içerik uzayındaki çerçevesi; hover'dan ekleme indeksi hesaplanır.
+    @State private var cardFrames: [String: CGRect] = [:]
+
+    /// Bu panelde görünen oturumlar: kümesi bu panele atananlar, kayıtlı kart sırasıyla.
     private var clusterSessions: [Session] {
-        sessionManager.sessions.filter {
-            clusterStore.clusterId(forProject: $0.projectKey) == clusterId
-        }
+        clusterStore.orderedSessions(
+            sessionManager.sessions.filter {
+                clusterStore.clusterId(forProject: $0.projectKey) == clusterId
+            },
+            inCluster: clusterId
+        )
     }
 
     var body: some View {
         content
             .padding(10)
             .fixedSize()
-            .scaleEffect(mergeHighlight.isTargeted ? 1.06 : 1)
+            .coordinateSpace(name: Self.contentSpace)
+            .scaleEffect(mergeHighlight.isTargeted ? 1.04 : 1)
             .animation(
                 .spring(response: 0.28, dampingFraction: 0.55),
                 value: mergeHighlight.isTargeted
@@ -54,12 +64,52 @@ struct OverlayRootView: View {
                 }
             )
             .onPreferenceChange(ContentSizePreferenceKey.self, perform: onContentSizeChange)
+            .onPreferenceChange(CardFramesPreferenceKey.self) { cardFrames = $0 }
             .animation(
                 .spring(response: 0.35, dampingFraction: 0.8),
                 value: clusterSessions.map(\.id)
             )
+            .animation(
+                .spring(response: 0.3, dampingFraction: 0.7),
+                value: mergeHighlight.insertionIndex
+            )
             .environment(\.mascotAnimationsPaused, !visibility.isVisible)
             .onReceive(sessionManager.longTaskCompleted) { showBanner($0) }
+            .onReceive(mergeHighlight.$hoverPoint) { point in
+                let index = point.map(insertionIndex(for:))
+                if mergeHighlight.insertionIndex != index {
+                    mergeHighlight.insertionIndex = index
+                }
+            }
+    }
+
+    /// Hover noktasına en yakın kart aralığının görüntü sırası indeksi:
+    /// önce dikeyde en yakın satır, sonra o satırda imlecin solunda kalan kartlar sayılır.
+    private func insertionIndex(for point: CGPoint) -> Int {
+        var indexed: [(index: Int, frame: CGRect)] = []
+        for (offset, session) in clusterSessions.enumerated() {
+            if let frame = cardFrames[session.id] {
+                indexed.append((offset, frame))
+            }
+        }
+        guard var nearest = indexed.first else { return 0 }
+
+        // İmlece dikeyde en yakın kartın satırı hedef satırdır.
+        var nearestDistance = abs(nearest.frame.midY - point.y)
+        for card in indexed {
+            let distance = abs(card.frame.midY - point.y)
+            if distance < nearestDistance {
+                nearest = card
+                nearestDistance = distance
+            }
+        }
+        var row = indexed.filter { abs($0.frame.minY - nearest.frame.minY) < 1 }
+        row.sort { $0.frame.minX < $1.frame.minX }
+
+        for card in row where point.x < card.frame.midX {
+            return card.index
+        }
+        return (row.last?.index ?? -1) + 1
     }
 
     @ViewBuilder
@@ -73,37 +123,65 @@ struct OverlayRootView: View {
                 .background(Capsule().fill(.ultraThinMaterial))
                 .transition(.scale(scale: 0.9).combined(with: .opacity))
         } else {
+            let totalCount = clusterSessions.count
+            let rows = sessionRows
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(sessionRows, id: \.first?.id) { row in
+                ForEach(Array(rows.enumerated()), id: \.element.first?.id) { rowIndex, row in
                     HStack(alignment: .top, spacing: 10) {
-                        ForEach(row) { session in
-                            VStack(spacing: 6) {
-                                SessionCardView(
-                                    session: session,
-                                    mascotCharacter: mascotPreferences.character(
-                                        forProject: session.projectKey
-                                    ),
-                                    onSelectMascot: { character in
-                                        mascotPreferences.setCharacter(
-                                            character,
-                                            forProject: session.projectKey
-                                        )
-                                    },
-                                    clusterAction: clusterAction(for: session)
-                                )
-                                .onTapGesture { onSessionActivate(session) }
-                                if let banner = doneBanners[session.id] {
-                                    DoneBanner(completion: banner)
-                                        .onTapGesture { onSessionActivate(session) }
-                                        .transition(.move(edge: .top).combined(with: .opacity))
-                                }
+                        ForEach(Array(row.enumerated()), id: \.element.id) { columnIndex, session in
+                            let displayIndex = rowIndex * Self.maxCardsPerRow + columnIndex
+                            if shouldShowGap(at: displayIndex) {
+                                insertionGap
                             }
-                            .transition(.scale(scale: 0.8).combined(with: .opacity))
+                            cardCell(for: session)
+                        }
+                        if rowIndex == rows.count - 1, shouldShowGap(at: totalCount) {
+                            insertionGap
                         }
                     }
                 }
             }
         }
+    }
+
+    /// Tek kart hücresi: kart + varsa done banner'ı + çerçeve raporu.
+    private func cardCell(for session: Session) -> some View {
+        VStack(spacing: 6) {
+            SessionCardView(
+                session: session,
+                mascotCharacter: mascotPreferences.character(forProject: session.projectKey),
+                onSelectMascot: { character in
+                    mascotPreferences.setCharacter(character, forProject: session.projectKey)
+                },
+                clusterAction: clusterAction(for: session)
+            )
+            .onTapGesture { onSessionActivate(session) }
+            if let banner = doneBanners[session.id] {
+                DoneBanner(completion: banner)
+                    .onTapGesture { onSessionActivate(session) }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: CardFramesPreferenceKey.self,
+                    value: [session.id: proxy.frame(in: .named(Self.contentSpace))]
+                )
+            }
+        )
+        .transition(.scale(scale: 0.8).combined(with: .opacity))
+    }
+
+    /// Sürüklenen panel bırakılırsa kartların gireceği yerde açılan boşluk.
+    private var insertionGap: some View {
+        Color.clear
+            .frame(width: 36, height: 64)
+            .transition(.scale(scale: 0.4).combined(with: .opacity))
+    }
+
+    private func shouldShowGap(at displayIndex: Int) -> Bool {
+        mergeHighlight.isTargeted && mergeHighlight.insertionIndex == displayIndex
     }
 
     /// Kartın sağ-tık küme eylemi: ana kümedeyse "kendi paneline ayır",
@@ -148,6 +226,14 @@ private struct ContentSizePreferenceKey: PreferenceKey {
     static var defaultValue: CGSize = .zero
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
         value = nextValue()
+    }
+}
+
+/// Kart çerçevelerini (içerik uzayında) köke taşıyan preference anahtarı.
+private struct CardFramesPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 

@@ -12,7 +12,13 @@ final class ClusterStore: ObservableObject {
     /// Atama sözlüğünün saklandığı UserDefaults anahtarı (proje yolu → küme id).
     static let defaultsKey = "clusterByProject"
 
+    /// Küme içi kart sırasının saklandığı anahtar (küme id → proje yolu listesi).
+    static let orderDefaultsKey = "cardOrderByCluster"
+
     @Published private(set) var clusterByProject: [String: String]
+    /// Kullanıcının sürükle-bırakla belirlediği kart sırası; listede olmayan
+    /// kartlar oluşturulma sırasıyla sona gelir.
+    @Published private(set) var orderByCluster: [String: [String]]
 
     private let defaults: UserDefaults
 
@@ -20,6 +26,19 @@ final class ClusterStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         clusterByProject = defaults.dictionary(forKey: Self.defaultsKey) as? [String: String] ?? [:]
+        orderByCluster = defaults.dictionary(forKey: Self.orderDefaultsKey) as? [String: [String]] ?? [:]
+    }
+
+    /// Oturumları kümenin kayıtlı kart sırasına göre dizer (kayıtsızlar oluşturulma
+    /// sırasıyla sona). View ve koordinatör AYNI sırayı bu fonksiyondan okur.
+    func orderedSessions(_ sessions: [Session], inCluster clusterId: String) -> [Session] {
+        let order = orderByCluster[clusterId] ?? []
+        guard !order.isEmpty else { return sessions }
+        return sessions.enumerated().sorted { lhs, rhs in
+            let lhsIndex = lhs.element.projectKey.flatMap { order.firstIndex(of: $0) } ?? Int.max
+            let rhsIndex = rhs.element.projectKey.flatMap { order.firstIndex(of: $0) } ?? Int.max
+            return lhsIndex == rhsIndex ? lhs.offset < rhs.offset : lhsIndex < rhsIndex
+        }.map(\.element)
     }
 
     /// Projenin kümesi; ataması yoksa ana küme.
@@ -37,6 +56,7 @@ final class ClusterStore: ObservableObject {
         guard let projectKey, !projectKey.isEmpty else { return nil }
         let clusterId = UUID().uuidString
         clusterByProject[projectKey] = clusterId
+        removeFromOrders(projectKey)
         persist()
         return clusterId
     }
@@ -45,11 +65,14 @@ final class ClusterStore: ObservableObject {
     func returnToMain(project projectKey: String?) {
         guard let projectKey else { return }
         clusterByProject.removeValue(forKey: projectKey)
+        removeFromOrders(projectKey)
         persist()
     }
 
     /// Bir kümenin tüm projelerini hedef kümeye taşır (sürükle-bırak birleşmesi).
-    func merge(cluster sourceId: String, into targetId: String) {
+    /// `order` verilirse hedef kümenin kart sırası bununla değiştirilir — bırakılan
+    /// kartlar kullanıcının bıraktığı konumda görünür.
+    func merge(cluster sourceId: String, into targetId: String, order: [String]? = nil) {
         guard sourceId != targetId else { return }
         for (projectKey, clusterId) in clusterByProject where clusterId == sourceId {
             if targetId == Self.mainClusterId {
@@ -58,17 +81,29 @@ final class ClusterStore: ObservableObject {
                 clusterByProject[projectKey] = targetId
             }
         }
+        if let order {
+            orderByCluster[targetId] = order
+        }
+        orderByCluster.removeValue(forKey: sourceId)
         persist()
     }
 
-    /// Tüm kartları ana panelde toplar.
+    /// Tüm kartları ana panelde toplar (sıra kayıtları da sıfırlanır).
     func gatherAll() {
-        guard !clusterByProject.isEmpty else { return }
+        guard !clusterByProject.isEmpty || !orderByCluster.isEmpty else { return }
         clusterByProject.removeAll()
+        orderByCluster.removeAll()
         persist()
+    }
+
+    private func removeFromOrders(_ projectKey: String) {
+        for (clusterId, order) in orderByCluster where order.contains(projectKey) {
+            orderByCluster[clusterId] = order.filter { $0 != projectKey }
+        }
     }
 
     private func persist() {
         defaults.set(clusterByProject, forKey: Self.defaultsKey)
+        defaults.set(orderByCluster, forKey: Self.orderDefaultsKey)
     }
 }

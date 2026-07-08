@@ -74,6 +74,58 @@ final class ClusterStoreTests: XCTestCase {
         XCTAssertTrue(store.clusterByProject.isEmpty)
     }
 
+    func testMergeWithOrderPlacesCardsAtDropPosition() {
+        let store = ClusterStore(defaults: defaults)
+        let source = store.detach(project: "/Users/dev/c")!
+
+        // c kartı, ana kümede a ile b'nin ARASINA bırakıldı.
+        store.merge(
+            cluster: source,
+            into: ClusterStore.mainClusterId,
+            order: ["/Users/dev/a", "/Users/dev/c", "/Users/dev/b"]
+        )
+
+        let sessions = ["a", "b", "c"].map { name in
+            Session(
+                id: name,
+                projectName: name,
+                cwd: "/Users/dev/\(name)",
+                state: .idle,
+                lastActivity: Date(),
+                isStale: false,
+                startedAt: Date()
+            )
+        }
+        let ordered = store.orderedSessions(sessions, inCluster: ClusterStore.mainClusterId)
+        XCTAssertEqual(ordered.map(\.id), ["a", "c", "b"])
+
+        // Sıra kalıcıdır.
+        let reloaded = ClusterStore(defaults: defaults)
+        XCTAssertEqual(
+            reloaded.orderedSessions(sessions, inCluster: ClusterStore.mainClusterId).map(\.id),
+            ["a", "c", "b"]
+        )
+    }
+
+    func testOrderedSessionsWithoutStoredOrderKeepsCreationOrder() {
+        let store = ClusterStore(defaults: defaults)
+        let sessions = ["x", "y"].map { name in
+            Session(
+                id: name,
+                projectName: name,
+                cwd: "/Users/dev/\(name)",
+                state: .idle,
+                lastActivity: Date(),
+                isStale: false,
+                startedAt: Date()
+            )
+        }
+        XCTAssertEqual(
+            store.orderedSessions(sessions, inCluster: ClusterStore.mainClusterId).map(\.id),
+            ["x", "y"]
+        )
+    }
+
     func testGatherAllReturnsEverythingToMain() {
         let store = ClusterStore(defaults: defaults)
         store.detach(project: "/Users/dev/a")
