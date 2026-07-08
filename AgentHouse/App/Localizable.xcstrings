@@ -581,6 +581,16 @@
         }
       }
     },
+    "Robot" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Robot"
+          }
+        }
+      }
+    },
     "Rocket" : {
       "localizations" : {
         "tr" : {

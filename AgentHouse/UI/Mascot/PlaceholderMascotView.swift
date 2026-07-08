@@ -322,6 +322,13 @@ struct MascotRenderer {
         static let statueLightMuted = CGColor(red: 0.78, green: 0.80, blue: 0.78, alpha: 1)
         static let statueMidMuted = CGColor(red: 0.64, green: 0.68, blue: 0.65, alpha: 1)
         static let statueDarkMuted = CGColor(red: 0.48, green: 0.53, blue: 0.50, alpha: 1)
+        // Robot (pixel art): çelik grisi tonları.
+        static let robotLight = CGColor(red: 0.79, green: 0.83, blue: 0.87, alpha: 1)
+        static let robotMid = CGColor(red: 0.60, green: 0.66, blue: 0.73, alpha: 1)
+        static let robotDark = CGColor(red: 0.37, green: 0.43, blue: 0.51, alpha: 1)
+        static let robotLightMuted = CGColor(red: 0.79, green: 0.79, blue: 0.79, alpha: 1)
+        static let robotMidMuted = CGColor(red: 0.64, green: 0.64, blue: 0.64, alpha: 1)
+        static let robotDarkMuted = CGColor(red: 0.46, green: 0.46, blue: 0.46, alpha: 1)
         // Yarış arabası: kırmızı gövde, koyu lastik, açık cam.
         static let carTop = CGColor(red: 0.93, green: 0.33, blue: 0.28, alpha: 1)
         static let carBottom = CGColor(red: 0.74, green: 0.18, blue: 0.16, alpha: 1)
@@ -502,7 +509,71 @@ struct MascotRenderer {
             drawStatueOfLiberty(context, u, state: state)
         case .smiley:
             drawSmiley(context, u, state: state)
+        case .robot:
+            drawRobot(context, u, state: state)
         }
+    }
+
+    /// Pixel art karakterlerin ortak çizicisi: 24x24 hücrelik satır haritasını
+    /// (hücre = 2 birim) harf → renk eşlemesiyle boyar. Hücreler tam piksel
+    /// sınırına oturduğu için ayrıca antialiasing kapatmaya gerek kalmaz.
+    private static func drawPixelMap(
+        _ rows: [String],
+        colors: [Character: CGColor],
+        _ context: CGContext,
+        _ u: CGFloat
+    ) {
+        let cell = 2 * u
+        for (rowIndex, row) in rows.enumerated() {
+            for (colIndex, symbol) in row.enumerated() {
+                guard let color = colors[symbol] else { continue }
+                context.setFillColor(color)
+                context.fill(CGRect(
+                    x: CGFloat(colIndex) * cell,
+                    y: CGFloat(rowIndex) * cell,
+                    width: cell,
+                    height: cell
+                ))
+            }
+        }
+    }
+
+    /// Pixel art robot: çelik gövde, yanlarda kulak cıvataları, tepede state-tint
+    /// anten ışığı (evdeki çatının karşılığı).
+    private static func drawRobot(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+        let rows = [
+            "........................",
+            "........................",
+            "........................",
+            "........................",
+            "........................",
+            "...........FF...........",
+            "...........FF...........",
+            "...........DD...........",
+            "......DDDDDDDDDDDD......",
+            "......DLLLLLLLLLLD......",
+            "......DLLLLLLLLLLD......",
+            "......DLLLLLLLLLLD......",
+            ".....MDLLLLLLLLLLDM.....",
+            ".....MDLLLLLLLLLLDM.....",
+            ".....MDLLLLLLLLLLDM.....",
+            "......DLLLLLLLLLLD......",
+            "......DLLLLLLLLLLD......",
+            "......DLLLLLLLLLLD......",
+            "......DLLLLLLLLLLD......",
+            "......DDDDDDDDDDDD......",
+            "........MMM..MMM........",
+            "........................",
+            "........................",
+            "........................",
+        ]
+        let muted = state == .limit
+        drawPixelMap(rows, colors: [
+            "L": muted ? Palette.robotLightMuted : Palette.robotLight,
+            "M": muted ? Palette.robotMidMuted : Palette.robotMid,
+            "D": muted ? Palette.robotDarkMuted : Palette.robotDark,
+            "F": Palette.tint[state] ?? Palette.flameInner,
+        ], context, u)
     }
 
     /// Gülen yüz: sarı-krem top gövde, pembe yanaklar, tepede state-tint mini bere.
@@ -600,33 +671,13 @@ struct MascotRenderer {
             "........................",
         ]
         let muted = state == .limit
-        let light = muted ? Palette.statueLightMuted : Palette.statueLight
-        let mid = muted ? Palette.statueMidMuted : Palette.statueMid
-        let dark = muted ? Palette.statueDarkMuted : Palette.statueDark
-        let flame = Palette.tint[state] ?? Palette.flameInner
-
-        let cell = 2 * u
-        for (rowIndex, row) in rows.enumerated() {
-            for (colIndex, symbol) in row.enumerated() {
-                let color: CGColor?
-                switch symbol {
-                case "L": color = light
-                case "M": color = mid
-                case "D": color = dark
-                case "T": color = Palette.chimney
-                case "F": color = flame
-                default: color = nil
-                }
-                guard let color else { continue }
-                context.setFillColor(color)
-                context.fill(CGRect(
-                    x: CGFloat(colIndex) * cell,
-                    y: CGFloat(rowIndex) * cell,
-                    width: cell,
-                    height: cell
-                ))
-            }
-        }
+        drawPixelMap(rows, colors: [
+            "L": muted ? Palette.statueLightMuted : Palette.statueLight,
+            "M": muted ? Palette.statueMidMuted : Palette.statueMid,
+            "D": muted ? Palette.statueDarkMuted : Palette.statueDark,
+            "T": Palette.chimney,
+            "F": Palette.tint[state] ?? Palette.flameInner,
+        ], context, u)
     }
 
     // MARK: - Attention halkası
@@ -1019,6 +1070,26 @@ struct MascotRenderer {
         case .raceCar: drawExhaust(context, u)
         case .statueOfLiberty: drawTorchSparkles(context, u)
         case .smiley: drawSweatDrop(context, u)
+        case .robot: drawAntennaSignal(context, u)
+        }
+    }
+
+    /// working (robot): antenden iki yana yayılan, yanıp sönen piksel sinyal noktaları.
+    private func drawAntennaSignal(_ context: CGContext, _ u: CGFloat) {
+        let tint = Palette.tint[state] ?? Palette.flameInner
+        let positions: [(CGFloat, CGFloat)] = [(18, 9), (30, 9), (15, 13), (33, 13)]
+        for (index, position) in positions.enumerated() {
+            let phase = (time / 1.0 + Double(index) / Double(positions.count))
+                .truncatingRemainder(dividingBy: 1)
+            let alpha = phase < 0.5 ? phase * 2 : (1 - phase) * 2
+            let side = 1.6 * u
+            context.setFillColor(tint.copy(alpha: alpha * 0.85) ?? tint)
+            context.fill(CGRect(
+                x: position.0 * u - side / 2,
+                y: position.1 * u - side / 2,
+                width: side,
+                height: side
+            ))
         }
     }
 
@@ -1175,6 +1246,7 @@ struct MascotRenderer {
             // Meşale sağ üstte; "?" sol tarafta belirir.
             case .statueOfLiberty: return CGPoint(x: 8, y: 10)
             case .smiley: return CGPoint(x: 37, y: 12)
+            case .robot: return CGPoint(x: 37, y: 11)
             }
         }()
         let bob = sin(time * 2 * .pi / 2.0)
@@ -1208,6 +1280,7 @@ struct MascotRenderer {
             // Sağ üst meşalenin olduğu yer; zZz sol taraftan süzülür.
             case .statueOfLiberty: return (CGPoint(x: 6, y: 14), 9)
             case .smiley: return (CGPoint(x: 36, y: 15), 11)
+            case .robot: return (CGPoint(x: 36, y: 14), 10)
             }
         }()
         for index in 0..<3 {
