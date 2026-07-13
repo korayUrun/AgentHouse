@@ -173,6 +173,22 @@ konumlandırmak istiyor (örn. biri üstte, ikisi altta). Panel-başına-küme m
 mevcut tek-panel mimarisinin (içeriğe göre boyutlanan NSPanel) çoğaltılmasıyla
 kuruldu; kart taşıma animasyonları SwiftUI insert/remove geçişleriyle verilir.
 
+## ADR-018 — Oturum-ortası compact SessionStart'ı state'i korur
+**Durum:** Kabul edildi (denetim düzeltmeleri sırasında kurucu kararı).
+**Karar:** CLAUDE.md hook tablosundaki "SessionStart → idle" kuralı tek bir durumda
+daraltıldı: `SessionStart` payload'ındaki `source == "compact"` ise state SIFIRLANMAZ,
+mevcut state korunur. Diğer tüm kaynaklarda (`startup`, `clear`, `resume`) davranış
+aynen `idle`'dır. Sinyal saf `SessionStateMachine.apply`'a `isContinuation` parametresi
+olarak geçer; SessionManager `source`'tan türetir.
+**Gerekçe:** Claude Code uzun bir tur ORTASINDA auto-compact yaptığında aynı session_id
+ile `SessionStart(source:"compact")` yollar. Koşulsuz `idle` dönüşü çalışan kartı boşta
+gösteriyor ve `workingSince`'i sıfırlayıp done-banner eşiğini bozuyordu — oysa oturum
+hâlâ çalışıyor. `compact` bir "yeni oturum" değil, süregelen oturumun bağlam
+sıkıştırmasıdır; state'i olduğu gibi bırakmak gözlemin doğruluğunu korur.
+**Sonuç:** `sourceBundleId` yakalaması da compact SessionStart'ta atlanır (kullanıcı o an
+başka uygulamada olabilir; terminal bağı bozulmasın). Tespit best-effort'tur: `source`
+alanı gelmezse davranış eskisi gibi (`idle`) kalır, hiçbir şey bozulmaz.
+
 ## Ertelenen fikirler (v1.0 sonrası, sırasız)
 - Panelden izin onaylama / Claude'a mesajla yönlendirme (gelecek paralı sürümün çekirdeği)
 - Gemini CLI / Codex CLI adapter'ları (capability protokolüyle)

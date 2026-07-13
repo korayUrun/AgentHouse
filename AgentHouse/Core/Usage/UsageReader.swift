@@ -25,9 +25,12 @@ final class UsageReader {
     private let logger = Logger(subsystem: "com.agenthouse.app", category: "UsageReader")
 
     deinit {
-        // deinit sırasında self'e async erişim güvenli değil; tail'ler sync kapatılır.
-        let currentTails = queue.sync { tails }
-        currentTails.values.forEach { $0.stop() }
+        // Teardown seri kuyrukta yapılır ki o an koşan readNewData ile fileHandle/source
+        // üzerinde yarış olmasın (kuyruk sözleşmesi: tüm erişimler bu kuyrukta).
+        queue.sync {
+            tails.values.forEach { $0.stop() }
+            tails.removeAll()
+        }
     }
 
     /// Gelen hook eventine göre izlemeyi başlatır/durdurur. Herhangi bir thread'den çağrılabilir.
@@ -45,8 +48,16 @@ final class UsageReader {
     /// Dosya henüz yoksa sessizce vazgeçer — sonraki eventte yeniden denenir (best-effort).
     func track(sessionId: String, transcriptPath: String) {
         queue.async { [weak self] in
-            guard let self, self.tails[sessionId] == nil else { return }
+            guard let self else { return }
             let url = URL(fileURLWithPath: transcriptPath)
+            if let existing = self.tails[sessionId] {
+                // Aynı dosya zaten izleniyorsa yeniden açma.
+                guard existing.url != url else { return }
+                // Resume/compact aynı session_id için YENİ bir transcript dosyasına
+                // yazmaya başlamış olabilir; eskisini bırakıp yenisine geç (sayaç donmasın).
+                existing.stop()
+                self.tails.removeValue(forKey: sessionId)
+            }
             guard let tail = TranscriptTail(
                 url: url,
                 queue: self.queue,
@@ -80,7 +91,8 @@ final class UsageReader {
 private final class TranscriptTail {
     private static let chunkSize = 256 * 1024
 
-    private let url: URL
+    /// İzlenen dosyanın yolu; UsageReader aynı oturum için farklı yol gelince karşılaştırır.
+    let url: URL
     private let queue: DispatchQueue
     private let onUsageChanged: (SessionUsage) -> Void
     private let onLiveLimitTrace: () -> Void

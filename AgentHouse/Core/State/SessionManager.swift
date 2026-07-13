@@ -140,9 +140,13 @@ final class SessionManager: ObservableObject {
         // ADR-015: Claude'un kullanıcıya soru sorması; tool adı sinyali metin
         // ayrıştırmadan güvenilirdir.
         let isQuestionSignal = name == .preToolUse && event.toolName == "AskUserQuestion"
+        // Oturum-ortası compact aynı session_id ile SessionStart yollar; bu bir "yeni
+        // oturum" değildir, state ve tur korunur (ADR-018).
+        let isContinuation = name == .sessionStart && event.source == "compact"
         // Kaynak uygulama, kullanıcının o an içinde olduğu kesin olan anlarda yakalanır;
-        // tool eventlerinde kullanıcı başka uygulamaya geçmiş olabilir.
-        let sourceBundleId = (name == .sessionStart || name == .userPromptSubmit)
+        // tool eventlerinde kullanıcı başka uygulamaya geçmiş olabilir. Compact anında da
+        // yakalanmaz — kullanıcı başka uygulamada olabilir, terminal bağı bozulmasın.
+        let sourceBundleId = ((name == .sessionStart && !isContinuation) || name == .userPromptSubmit)
             ? frontmostApp()
             : nil
         var completion: LongTaskCompletion?
@@ -154,7 +158,8 @@ final class SessionManager: ObservableObject {
                 state: previousState,
                 event: name,
                 isLimitSignal: isLimitSignal,
-                isQuestionSignal: isQuestionSignal
+                isQuestionSignal: isQuestionSignal,
+                isContinuation: isContinuation
             )
             session.lastActivity = timestamp
             session.isStale = false
@@ -179,7 +184,8 @@ final class SessionManager: ObservableObject {
                     state: .idle,
                     event: name,
                     isLimitSignal: isLimitSignal,
-                    isQuestionSignal: isQuestionSignal
+                    isQuestionSignal: isQuestionSignal,
+                    isContinuation: isContinuation
                 ),
                 lastActivity: timestamp,
                 isStale: false,

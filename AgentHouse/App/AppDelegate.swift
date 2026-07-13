@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let coordinator = OverlayCoordinator(
             sessionManager: manager,
             clusterStore: ClusterStore(),
+            mascotPreferences: MascotPreferences(),
             onSessionActivate: { [terminalFocuser] session in
                 terminalFocuser.focusSession(bundleId: session.sourceBundleId, cwd: session.cwd)
             }

@@ -31,6 +31,12 @@ struct HookInstaller {
     // Tool eventleri matcher alanı bekler; "*" tüm tool'ları eşler.
     private static let matcherEventNames: Set<String> = ["PreToolUse", "PostToolUse"]
 
+    /// Hook komutunu benzersiz biçimde AgentHouse'a ait kılan işaret başlığı adı;
+    /// kaldırma/dedup bu başlığa bakar (port değişse de tanır, üçüncü tarafla çakışmaz).
+    static let markerHeader = "X-AgentHouse"
+
+    private let logger = Logger(subsystem: "com.agenthouse.app", category: "HookInstaller")
+
     /// Hook girdilerinin yazıldığı settings dosyası (varsayılan: ~/.claude/settings.json).
     let settingsURL: URL
 
@@ -56,15 +62,26 @@ struct HookInstaller {
     }
 
     /// settings.json'a eklenen komut. `--max-time 1` ve `|| true` sayesinde uygulama
-    /// kapalıyken bile Claude Code'u asla bloklamaz.
+    /// kapalıyken bile Claude Code'u asla bloklamaz. `X-AgentHouse` başlığı girdiyi
+    /// benzersiz işaretler (sunucu bu bilinmeyen başlığı yok sayar).
     var hookCommand: String {
         "curl -s --max-time 1 -X POST http://127.0.0.1:\(port)/event"
-            + " -H 'Content-Type: application/json' -d @- || true"
+            + " -H 'Content-Type: application/json' -H '\(Self.markerHeader): 1' -d @- || true"
     }
 
     /// Bir hook komutunun AgentHouse'a ait olup olmadığını belirler (port değişse bile tanır).
     static func isAgentHouseCommand(_ command: String) -> Bool {
-        command.contains("curl") && command.contains("127.0.0.1") && command.contains("/event")
+        // Yeni girdiler benzersiz işaret başlığı taşır.
+        if command.contains(markerHeader) { return true }
+        // İşaret öncesi (eski) girdileri tanı: yalnızca AgentHouse'un ürettiği dar imza.
+        // Bu kombinasyonun tamamı bir arada üçüncü tarafın hook'uyla çakışmayacak kadar
+        // spesifiktir; böylece uninstall başkasının curl'ünü silmez, install eski kendi
+        // girdimizi dedup eder.
+        return command.contains("curl")
+            && command.contains("--max-time 1")
+            && command.contains("127.0.0.1")
+            && command.contains("/event")
+            && command.contains("-d @-")
     }
 
     /// Hook girdilerini merge ederek kurar. Dosya varsa önce yedek alınır; işlem idempotenttir.
@@ -73,9 +90,13 @@ struct HookInstaller {
         try backUpExistingFile()
 
         var hooks = root["hooks"] as? [String: Any] ?? [:]
+        var skipped: [String] = []
         for eventName in Self.managedEventNames {
             // Beklenmedik tipte mevcut bir değer varsa ona dokunma (veri kaybetme).
-            guard hooks[eventName] == nil || hooks[eventName] is [[String: Any]] else { continue }
+            guard hooks[eventName] == nil || hooks[eventName] is [[String: Any]] else {
+                skipped.append(eventName)
+                continue
+            }
             var groups = hooks[eventName] as? [[String: Any]] ?? []
             groups = Self.removingAgentHouseEntries(from: groups)
             groups.append(makeHookGroup(for: eventName))
@@ -83,11 +104,18 @@ struct HookInstaller {
         }
         root["hooks"] = hooks
         try write(root)
+
+        // Beklenmedik yapı yüzünden bazı eventler atlandıysa kullanıcı "kuruldu" görür
+        // ama o eventler akmaz; sebebi loglanır (veri koruması bilinçlidir).
+        if !skipped.isEmpty {
+            logger.warning("Beklenmedik tipteki mevcut girdiler korundu; şu eventlere AgentHouse hook'u EKLENMEDİ: \(skipped.joined(separator: ", "), privacy: .public)")
+        }
     }
 
     /// SADECE AgentHouse'un eklediği hook girdilerini kaldırır; kullanıcının girdileri korunur.
     func uninstall() throws {
         guard FileManager.default.fileExists(atPath: settingsURL.path) else { return }
+        try backUpExistingFile()
         var root = try readSettings()
         guard var hooks = root["hooks"] as? [String: Any] else { return }
 
@@ -173,9 +201,10 @@ struct HookInstaller {
     private func backUpExistingFile() throws {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: settingsURL.path) else { return }
-        if fileManager.fileExists(atPath: backupURL.path) {
-            try fileManager.removeItem(at: backupURL)
-        }
+        // Yedek yalnızca İLK yazımdan önce alınır; sonraki install/port/uninstall yazımları
+        // pristine orijinali EZMESİN (aksi halde yedek de AgentHouse girdilerini içerir ve
+        // "önceki ayarlarınızın yedeği" vaadi bozulur).
+        guard !fileManager.fileExists(atPath: backupURL.path) else { return }
         try fileManager.copyItem(at: settingsURL, to: backupURL)
     }
 

@@ -55,21 +55,33 @@ final class ClusterStoreTests: XCTestCase {
         XCTAssertTrue(store.clusterByProject.isEmpty)
     }
 
-    func testMergeMovesAllProjectsOfCluster() {
+    func testMergeMovesGivenProjectsIntoTarget() {
         let store = ClusterStore(defaults: defaults)
         let source = store.detach(project: "/Users/dev/a")!
         store.detach(project: "/Users/dev/b")
         let target = store.clusterId(forProject: "/Users/dev/b")
 
-        store.merge(cluster: source, into: target)
+        store.merge(projects: ["/Users/dev/a"], from: source, into: target)
         XCTAssertEqual(store.clusterId(forProject: "/Users/dev/a"), target)
+    }
+
+    func testMergeMainClusterIntoDetachedMovesMainProjects() {
+        // Ana kümedeki projelerin clusterByProject'te KAYDI YOK (yokluk = main); merge
+        // artık kaynak taraması yerine açık üye listesiyle çalıştığı için ana paneli
+        // ayrık panele bırakmak da doğru birleşir (eski hatada hiçbir kart taşınmıyordu).
+        let store = ClusterStore(defaults: defaults)
+        let target = store.detach(project: "/Users/dev/b")!
+
+        store.merge(projects: ["/Users/dev/a"], from: ClusterStore.mainClusterId, into: target)
+        XCTAssertEqual(store.clusterId(forProject: "/Users/dev/a"), target)
+        XCTAssertEqual(store.clusterId(forProject: "/Users/dev/b"), target)
     }
 
     func testMergeIntoMainClearsAssignments() {
         let store = ClusterStore(defaults: defaults)
         let source = store.detach(project: "/Users/dev/a")!
 
-        store.merge(cluster: source, into: ClusterStore.mainClusterId)
+        store.merge(projects: ["/Users/dev/a"], from: source, into: ClusterStore.mainClusterId)
         XCTAssertEqual(store.clusterId(forProject: "/Users/dev/a"), ClusterStore.mainClusterId)
         XCTAssertTrue(store.clusterByProject.isEmpty)
     }
@@ -80,7 +92,8 @@ final class ClusterStoreTests: XCTestCase {
 
         // c kartı, ana kümede a ile b'nin ARASINA bırakıldı.
         store.merge(
-            cluster: source,
+            projects: ["/Users/dev/c"],
+            from: source,
             into: ClusterStore.mainClusterId,
             order: ["/Users/dev/a", "/Users/dev/c", "/Users/dev/b"]
         )

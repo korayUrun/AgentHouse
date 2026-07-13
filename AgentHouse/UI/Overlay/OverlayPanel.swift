@@ -29,6 +29,7 @@ final class OverlayPanel: NSPanel {
     init(
         sessionManager: SessionManager,
         clusterStore: ClusterStore,
+        mascotPreferences: MascotPreferences,
         clusterId: String = ClusterStore.mainClusterId,
         onSessionActivate: @escaping (Session) -> Void = { _ in }
     ) {
@@ -56,6 +57,7 @@ final class OverlayPanel: NSPanel {
             rootView: OverlayRootView(
                 sessionManager: sessionManager,
                 clusterStore: clusterStore,
+                mascotPreferences: mascotPreferences,
                 clusterId: clusterId,
                 visibility: contentVisibility,
                 mergeHighlight: mergeHighlight,

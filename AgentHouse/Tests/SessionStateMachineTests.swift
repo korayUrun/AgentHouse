@@ -16,6 +16,26 @@ final class SessionStateMachineTests: XCTestCase {
         }
     }
 
+    // MARK: - Oturum-ortası compact (ADR-018)
+
+    func testCompactSessionStartPreservesState() {
+        // source=compact yeni oturum değil; çalışan/soru bekleyen kart olduğu gibi kalır.
+        for state in SessionState.allCases {
+            XCTAssertEqual(
+                SessionStateMachine.apply(state: state, event: .sessionStart, isContinuation: true),
+                state
+            )
+        }
+    }
+
+    func testNonCompactSessionStartStillResetsToIdle() {
+        // startup/clear/resume (isContinuation=false) hâlâ idle döndürür.
+        XCTAssertEqual(
+            SessionStateMachine.apply(state: .working, event: .sessionStart, isContinuation: false),
+            .idle
+        )
+    }
+
     func testUserPromptSubmitYieldsWorkingFromEveryState() {
         for state in SessionState.allCases {
             XCTAssertEqual(SessionStateMachine.apply(state: state, event: .userPromptSubmit), .working)

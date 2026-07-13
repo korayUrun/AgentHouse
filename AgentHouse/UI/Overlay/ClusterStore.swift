@@ -69,12 +69,14 @@ final class ClusterStore: ObservableObject {
         persist()
     }
 
-    /// Bir kümenin tüm projelerini hedef kümeye taşır (sürükle-bırak birleşmesi).
-    /// `order` verilirse hedef kümenin kart sırası bununla değiştirilir — bırakılan
-    /// kartlar kullanıcının bıraktığı konumda görünür.
-    func merge(cluster sourceId: String, into targetId: String, order: [String]? = nil) {
+    /// Verilen projeleri hedef kümeye taşır (sürükle-bırak birleşmesi). Kaynak küme
+    /// TARANMAZ; çağıran taşınacak projeleri açıkça verir — böylece ana küme (üyeleri
+    /// `clusterByProject`'te tutulmaz) hem kaynak hem hedef olabilir. Hedef ana küme ise
+    /// üyeler haritadan çıkarılır (ana kümeye dönüş). `order` verilirse hedefin kart
+    /// sırası bununla değişir; `sourceId`'nin sıra kaydı temizlenir (kaynak dağılır).
+    func merge(projects movedKeys: [String], from sourceId: String, into targetId: String, order: [String]? = nil) {
         guard sourceId != targetId else { return }
-        for (projectKey, clusterId) in clusterByProject where clusterId == sourceId {
+        for projectKey in movedKeys {
             if targetId == Self.mainClusterId {
                 clusterByProject.removeValue(forKey: projectKey)
             } else {

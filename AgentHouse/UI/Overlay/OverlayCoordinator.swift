@@ -9,6 +9,8 @@ import os
 final class OverlayCoordinator {
     private let sessionManager: SessionManager
     private let clusterStore: ClusterStore
+    /// Tüm panellerin paylaştığı tek maskot tercihleri örneği (ADR-014).
+    private let mascotPreferences: MascotPreferences
     private let onSessionActivate: (Session) -> Void
 
     private var panels: [String: OverlayPanel] = [:]
@@ -21,10 +23,12 @@ final class OverlayCoordinator {
     init(
         sessionManager: SessionManager,
         clusterStore: ClusterStore,
+        mascotPreferences: MascotPreferences,
         onSessionActivate: @escaping (Session) -> Void
     ) {
         self.sessionManager = sessionManager
         self.clusterStore = clusterStore
+        self.mascotPreferences = mascotPreferences
         self.onSessionActivate = onSessionActivate
 
         // Ana panel her zaman var olur (boşken gizlenir); menü bar toggle'ı için çıpa.
@@ -126,6 +130,12 @@ final class OverlayCoordinator {
             } else {
                 panel.hide()
                 if clusterId != ClusterStore.mainClusterId {
+                    // Küme ataması tamamen kalktıysa (birleşme/topla/ana'ya dönüş) pozisyon
+                    // kaydı da çöptür; yalnızca boşalan ama HÂLÂ atanmış kümede korunur
+                    // (kalıcı yerleşim sonraki oturumlarda kaybolmasın).
+                    if !clusterStore.clusterByProject.values.contains(clusterId) {
+                        panel.clearStoredPosition()
+                    }
                     panels.removeValue(forKey: clusterId)
                 }
             }
@@ -136,6 +146,7 @@ final class OverlayCoordinator {
         OverlayPanel(
             sessionManager: sessionManager,
             clusterStore: clusterStore,
+            mascotPreferences: mascotPreferences,
             clusterId: clusterId,
             onSessionActivate: onSessionActivate
         )
@@ -249,7 +260,7 @@ final class OverlayCoordinator {
 
         logger.info("Panel bırakıldı; kümeler birleştiriliyor: \(moved.clusterId, privacy: .public) → \(target.clusterId, privacy: .public) @\(index)")
         moved.clearStoredPosition()
-        clusterStore.merge(cluster: moved.clusterId, into: target.clusterId, order: newOrder)
+        clusterStore.merge(projects: movedKeys, from: moved.clusterId, into: target.clusterId, order: newOrder)
     }
 
     /// Kümenin görüntü sırasındaki proje anahtarları (view ile aynı sıralamayı kullanır).

@@ -24,13 +24,15 @@ final class SessionManagerTests: XCTestCase {
         session: String? = "s1",
         cwd: String? = nil,
         message: String? = nil,
-        toolName: String? = nil
+        toolName: String? = nil,
+        source: String? = nil
     ) -> HookEvent {
         var fields: [String: Any] = ["hook_event_name": name]
         fields["session_id"] = session
         fields["cwd"] = cwd
         fields["message"] = message
         fields["tool_name"] = toolName
+        fields["source"] = source
         let data = try! JSONSerialization.data(withJSONObject: fields)
         return try! JSONDecoder().decode(HookEvent.self, from: data)
     }
@@ -55,6 +57,42 @@ final class SessionManagerTests: XCTestCase {
         manager.handle(event("PreToolUse", toolName: "Bash"))
 
         XCTAssertEqual(manager.sessions.first?.state, .working)
+    }
+
+    // MARK: - Oturum-ortası compact (ADR-018)
+
+    func testCompactSessionStartDoesNotResetWorkingSession() {
+        let manager = makeManager()
+        manager.handle(event("UserPromptSubmit"))
+        XCTAssertEqual(manager.sessions[0].state, .working)
+        let workingSince = manager.sessions[0].workingSince
+        XCTAssertNotNil(workingSince)
+
+        // Auto-compact aynı session_id ile SessionStart(source: compact) yollar; çalışan
+        // kart idle'a düşmemeli ve workingSince (done-banner eşiği) sıfırlanmamalı.
+        manager.handle(event("SessionStart", source: "compact"))
+        XCTAssertEqual(manager.sessions[0].state, .working)
+        XCTAssertEqual(manager.sessions[0].workingSince, workingSince)
+    }
+
+    func testNormalSessionStartStillResetsToIdle() {
+        let manager = makeManager()
+        manager.handle(event("UserPromptSubmit"))
+        // source=startup (veya alan yok) yeni tur başlangıcıdır; idle'a döner.
+        manager.handle(event("SessionStart", source: "startup"))
+        XCTAssertEqual(manager.sessions[0].state, .idle)
+    }
+
+    func testCompactSessionStartDoesNotOverwriteSourceApp() {
+        // Compact anında kullanıcı başka uygulamada olabilir; terminal bağı bozulmamalı.
+        var frontmost: String? = "com.apple.Terminal"
+        let manager = makeManager(frontmostApp: { frontmost })
+        manager.handle(event("SessionStart"))
+        manager.handle(event("UserPromptSubmit"))
+
+        frontmost = "com.apple.Safari"
+        manager.handle(event("SessionStart", source: "compact"))
+        XCTAssertEqual(manager.sessions[0].sourceBundleId, "com.apple.Terminal")
     }
 
     // MARK: - Oturum oluşturma ve proje adı

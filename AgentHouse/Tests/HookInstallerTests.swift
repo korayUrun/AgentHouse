@@ -92,6 +92,23 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: installer.backupURL.path))
     }
 
+    func testSecondInstallKeepsOriginalPristineBackup() throws {
+        // Yedek yalnızca İLK yazımdan önce alınır; ikinci install (ör. port değişimi)
+        // yedeği ezmemeli, aksi halde yedek de AgentHouse girdilerini içerir.
+        let original = #"{"model": "opus"}"#
+        try writeSettings(original)
+
+        try installer.install()
+        try installer.install()
+
+        let backupData = try Data(contentsOf: installer.backupURL)
+        XCTAssertEqual(
+            String(data: backupData, encoding: .utf8),
+            original,
+            "Yedek ilk (pristine) içerikte kalmalı; AgentHouse girdileriyle kirlenmemeli"
+        )
+    }
+
     func testInstallPreservesUnrelatedSettingsAndUserHooks() throws {
         try writeSettings(
             """
@@ -208,6 +225,34 @@ final class HookInstallerTests: XCTestCase {
     func testUninstallWithoutFileDoesNothing() throws {
         XCTAssertNoThrow(try installer.uninstall())
         XCTAssertFalse(FileManager.default.fileExists(atPath: settingsURL.path))
+    }
+
+    func testUninstallPreservesThirdPartyLocalhostHook() throws {
+        // Başka bir aracın localhost hook'u AgentHouse imzası taşımaz; kaldırma onu silmemeli.
+        // Eski gevşek eşleşme (curl + 127.0.0.1 + /event) bunu yanlışlıkla siliyordu.
+        let thirdParty = "curl -s -X POST http://127.0.0.1:9999/event -d @-"
+        try writeSettings(
+            """
+            {
+                "hooks": {
+                    "Stop": [
+                        {"hooks": [{"type": "command", "command": "\(thirdParty)"}]}
+                    ]
+                }
+            }
+            """
+        )
+        try installer.install()
+        try installer.uninstall()
+
+        let root = try readRoot()
+        let stopCommands = hookGroups(in: root, event: "Stop").flatMap { group -> [String] in
+            (group["hooks"] as? [[String: Any]] ?? []).compactMap { $0["command"] as? String }
+        }
+        XCTAssertTrue(
+            stopCommands.contains(thirdParty),
+            "Üçüncü tarafın localhost hook'u silinmemeli (imza artık AgentHouse'a özgü)"
+        )
     }
 
     // MARK: - Durum sorgusu

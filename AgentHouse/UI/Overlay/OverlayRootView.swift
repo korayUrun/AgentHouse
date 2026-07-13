@@ -6,6 +6,10 @@ struct OverlayRootView: View {
     @ObservedObject var sessionManager: SessionManager
     /// Kart → panel atamaları (ADR-017); bu panel yalnızca kendi kümesini gösterir.
     @ObservedObject var clusterStore: ClusterStore
+    /// Proje → maskot karakteri tercihleri (ADR-014); seçim kart menüsünden yapılır.
+    /// Tüm paneller AYNI örneği paylaşır (koordinatörden enjekte edilir) ki bir panelde
+    /// yapılan maskot seçimi diğer panellerde de anında görünsün.
+    @ObservedObject var mascotPreferences = MascotPreferences()
     /// Bu panelin kümesi.
     var clusterId: String = ClusterStore.mainClusterId
     /// Panel görünürlüğü; gizliyken maskot animasyonları durdurulur.
@@ -21,9 +25,6 @@ struct OverlayRootView: View {
 
     /// Ekranda duran done banner'ları, session_id → tamamlama bilgisi.
     @State private var doneBanners: [String: LongTaskCompletion] = [:]
-
-    /// Proje → maskot karakteri tercihleri (ADR-014); seçim kart menüsünden yapılır.
-    @StateObject private var mascotPreferences = MascotPreferences()
 
     /// Banner'ın kendiliğinden toplanmadan önce ekranda kaldığı süre (sn).
     static let bannerDisplayDuration: TimeInterval = 5

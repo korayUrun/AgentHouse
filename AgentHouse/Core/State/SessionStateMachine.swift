@@ -7,15 +7,19 @@ enum SessionStateMachine {
     /// hangi state'e taşır? `sessionEnd` bir geçiş değil oturum silmedir; state'i değiştirmez.
     /// `isLimitSignal`, Notification içeriğinin limit belirttiğini söyler (LimitDetector karar verir).
     /// `isQuestionSignal`, PreToolUse'un AskUserQuestion tool'una ait olduğunu söyler (ADR-015).
+    /// `isContinuation`, SessionStart'ın oturum-ortası bir devam (source=compact) olduğunu
+    /// söyler; öyleyse state SIFIRLANMAZ, mevcut state korunur (ADR-018).
     static func apply(
         state: SessionState,
         event: HookEvent.Name,
         isLimitSignal: Bool = false,
-        isQuestionSignal: Bool = false
+        isQuestionSignal: Bool = false,
+        isContinuation: Bool = false
     ) -> SessionState {
         switch event {
         case .sessionStart:
-            return .idle
+            // Oturum-ortası compact yeni bir oturum değildir; çalışan tur bozulmasın (ADR-018).
+            return isContinuation ? state : .idle
         case .userPromptSubmit:
             return .working
         // attention→working senkronizasyonu buradan gelir: terminalden izin onaylanınca
