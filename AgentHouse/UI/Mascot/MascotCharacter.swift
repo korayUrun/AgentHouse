@@ -15,6 +15,9 @@ enum MascotCharacter: String, CaseIterable, Identifiable {
     case smiley
     // Pixel art stili jenerik robot.
     case robot
+    // Pixel art stili, mor saçlı jenerik anime kızı; belirli bir eserin
+    // karakterini kopyalamaz.
+    case luna
 
     /// Yeni projelerin başladığı varsayılan karakter.
     static let `default` = MascotCharacter.house
@@ -31,6 +34,7 @@ enum MascotCharacter: String, CaseIterable, Identifiable {
         case .statueOfLiberty: return String(localized: "Statue of Liberty")
         case .smiley: return String(localized: "Smiley")
         case .robot: return String(localized: "Robot")
+        case .luna: return String(localized: "Luna")
         }
     }
 }

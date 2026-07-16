@@ -437,6 +437,16 @@
         }
       }
     },
+    "Luna" : {
+      "localizations" : {
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luna"
+          }
+        }
+      }
+    },
     "Mascot" : {
       "localizations" : {
         "tr" : {

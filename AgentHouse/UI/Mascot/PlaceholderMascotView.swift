@@ -337,6 +337,21 @@ struct MascotRenderer {
         static let robotLightMuted = CGColor(red: 0.79, green: 0.79, blue: 0.79, alpha: 1)
         static let robotMidMuted = CGColor(red: 0.64, green: 0.64, blue: 0.64, alpha: 1)
         static let robotDarkMuted = CGColor(red: 0.46, green: 0.46, blue: 0.46, alpha: 1)
+        // Luna (pixel art): lavanta-mor saç tonları, ten, choker ve elbise.
+        static let lunaHairLight = CGColor(red: 0.80, green: 0.73, blue: 0.93, alpha: 1)
+        static let lunaHairMid = CGColor(red: 0.63, green: 0.54, blue: 0.84, alpha: 1)
+        static let lunaHairDark = CGColor(red: 0.44, green: 0.36, blue: 0.66, alpha: 1)
+        static let lunaSkin = CGColor(red: 0.99, green: 0.90, blue: 0.83, alpha: 1)
+        static let lunaChoker = CGColor(red: 0.25, green: 0.22, blue: 0.32, alpha: 1)
+        static let lunaDress = CGColor(red: 0.87, green: 0.84, blue: 0.95, alpha: 1)
+        static let lunaEye = CGColor(red: 0.75, green: 0.20, blue: 0.25, alpha: 1)
+        static let lunaBlush = CGColor(red: 0.97, green: 0.67, blue: 0.65, alpha: 1)
+        static let lunaBlushMuted = CGColor(red: 0.88, green: 0.79, blue: 0.77, alpha: 1)
+        static let lunaHairLightMuted = CGColor(red: 0.82, green: 0.80, blue: 0.86, alpha: 1)
+        static let lunaHairMidMuted = CGColor(red: 0.68, green: 0.66, blue: 0.74, alpha: 1)
+        static let lunaHairDarkMuted = CGColor(red: 0.52, green: 0.50, blue: 0.60, alpha: 1)
+        static let lunaSkinMuted = CGColor(red: 0.90, green: 0.86, blue: 0.82, alpha: 1)
+        static let lunaDressMuted = CGColor(red: 0.84, green: 0.83, blue: 0.88, alpha: 1)
         // Yarış arabası: kırmızı gövde, koyu lastik, açık cam.
         static let carTop = CGColor(red: 0.93, green: 0.33, blue: 0.28, alpha: 1)
         static let carBottom = CGColor(red: 0.74, green: 0.18, blue: 0.16, alpha: 1)
@@ -564,6 +579,8 @@ struct MascotRenderer {
             drawSmiley(context, u, state: state)
         case .robot:
             drawRobot(context, u, state: state)
+        case .luna:
+            drawLuna(context, u, state: state)
         }
     }
 
@@ -625,6 +642,50 @@ struct MascotRenderer {
             "L": muted ? Palette.robotLightMuted : Palette.robotLight,
             "M": muted ? Palette.robotMidMuted : Palette.robotMid,
             "D": muted ? Palette.robotDarkMuted : Palette.robotDark,
+            "F": Palette.tint[state] ?? Palette.flameInner,
+        ], context, u)
+    }
+
+    /// Pixel art Luna: lavanta-mor uzun saçlı anime kızı; sol yandaki saç tokası
+    /// state renk dilini taşır (evdeki çatının karşılığı).
+    private static func drawLuna(_ context: CGContext, _ u: CGFloat, state: SessionState) {
+        // . boş, H açık saç, M orta saç, D koyu saç (kâkül ucu), S ten,
+        // B allık, C choker, W elbise, F saç tokası (state tint).
+        let rows = [
+            "........................",
+            "........................",
+            "........................",
+            "........HHHHHHHH........",
+            "......HHHHHHHHHHHH......",
+            ".....HHHHHHHHHHHHHH.....",
+            "...FFHHHHHHHHHHHHHHM....",
+            "..FFFFHHHHHHHHHHHHHM....",
+            "...FFHHHHHHHHHHHHHHM....",
+            "....MHHHHHHHHHHHHHHM....",
+            "....MHHHHHHHHHHHHHHM....",
+            "....MHHHHHHHHHHHHHHM....",
+            "....MHHDHHHDDHHHDHHM....",
+            "....MHHHSSSHHSSSHHHM....",
+            "....MHSHSSSMSSSSHSHM....",
+            "....MHSMSSSSSSSSMSHM....",
+            "....MHHBBSSSSSSBBHHM....",
+            "....MHHSSSSSSSSSSHHM....",
+            ".....MMMSSSSSSSSMMM.....",
+            "....MMMMCCCCCCCCMMMM....",
+            "...MMMWWWWWWWWWWWWMMM...",
+            "........................",
+            "........................",
+            "........................",
+        ]
+        let muted = state == .limit
+        drawPixelMap(rows, colors: [
+            "H": muted ? Palette.lunaHairLightMuted : Palette.lunaHairLight,
+            "M": muted ? Palette.lunaHairMidMuted : Palette.lunaHairMid,
+            "D": muted ? Palette.lunaHairDarkMuted : Palette.lunaHairDark,
+            "S": muted ? Palette.lunaSkinMuted : Palette.lunaSkin,
+            "B": muted ? Palette.lunaBlushMuted : Palette.lunaBlush,
+            "C": Palette.lunaChoker,
+            "W": muted ? Palette.lunaDressMuted : Palette.lunaDress,
             "F": Palette.tint[state] ?? Palette.flameInner,
         ], context, u)
     }
@@ -1043,9 +1104,19 @@ struct MascotRenderer {
         context.strokePath()
     }
 
-    /// Yüz ölçeği: smiley'de kimlik iri yüzden gelir; diğer karakterlerde 1.
+    /// Yüz ölçeği: smiley'de kimlik iri yüzden gelir; Luna'da iri anime gözler;
+    /// diğer karakterlerde 1.
     private var faceScale: CGFloat {
-        character == .smiley ? 1.5 : 1
+        switch character {
+        case .smiley: return 1.5
+        case .luna: return 1.2
+        default: return 1
+        }
+    }
+
+    /// Göz rengi: Luna'da kimliğin parçası olan koyu kırmızı; diğerlerinde ortak kahve.
+    private var eyeColor: CGColor {
+        character == .luna ? Palette.lunaEye : Palette.eye
     }
 
     /// Yüzün turntable dönüşüyle kaydığı ofset (2.5D); göz ve ağız birlikte döner.
@@ -1057,7 +1128,7 @@ struct MascotRenderer {
         let scale = faceScale
         let openness = max(pose.eyeOpenness, 0.08)
         let eyeHeight = 4.6 * u * scale * openness
-        context.setFillColor(Palette.eye)
+        context.setFillColor(eyeColor)
         for centerX in [19.0, 29.0] {
             let x = centerX * u + pose.eyeLookX * 1.5 * u + spinOffset(u)
             let rect = CGRect(
@@ -1129,6 +1200,27 @@ struct MascotRenderer {
         case .statueOfLiberty: drawTorchSparkles(context, u)
         case .smiley: drawSweatDrop(context, u)
         case .robot: drawAntennaSignal(context, u)
+        case .luna: drawLunaSparkles(context, u)
+        }
+    }
+
+    /// working (Luna): başının çevresinde yanıp sönen anime parıltı kareleri
+    /// (stille uyum için daire değil kare).
+    private func drawLunaSparkles(_ context: CGContext, _ u: CGFloat) {
+        let tint = Palette.tint[state] ?? Palette.flameInner
+        let positions: [(CGFloat, CGFloat)] = [(7, 6), (41, 9), (5, 21), (40, 3)]
+        for (index, position) in positions.enumerated() {
+            let phase = (time / 1.2 + Double(index) / Double(positions.count))
+                .truncatingRemainder(dividingBy: 1)
+            let alpha = phase < 0.5 ? phase * 2 : (1 - phase) * 2
+            let side = 1.6 * u
+            context.setFillColor(tint.copy(alpha: alpha * 0.85) ?? tint)
+            context.fill(CGRect(
+                x: position.0 * u - side / 2,
+                y: position.1 * u - side / 2,
+                width: side,
+                height: side
+            ))
         }
     }
 
@@ -1305,6 +1397,8 @@ struct MascotRenderer {
             case .statueOfLiberty: return CGPoint(x: 8, y: 10)
             case .smiley: return CGPoint(x: 37, y: 12)
             case .robot: return CGPoint(x: 37, y: 11)
+            // Toka sol tarafta; "?" sağ tarafta belirir.
+            case .luna: return CGPoint(x: 38, y: 9)
             }
         }()
         let bob = sin(time * 2 * .pi / 2.0)
@@ -1339,6 +1433,8 @@ struct MascotRenderer {
             case .statueOfLiberty: return (CGPoint(x: 6, y: 14), 9)
             case .smiley: return (CGPoint(x: 36, y: 15), 11)
             case .robot: return (CGPoint(x: 36, y: 14), 10)
+            // Toka sol tarafta; zZz sağ taraftan süzülür.
+            case .luna: return (CGPoint(x: 37, y: 12), 10)
             }
         }()
         for index in 0..<3 {
