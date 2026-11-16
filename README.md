@@ -38,7 +38,8 @@ There are no prebuilt releases yet, so you build the app yourself. It takes abou
 
 1. Clone the repo:
    ```bash
-   git clone https://github.com/<your-username>/AgentHouse.git
+   git clone https://github.com/korayUrun/AgentHouse.git
+   cd AgentHouse
    ```
 2. Open `AgentHouse.xcodeproj` in Xcode.
 3. Select the **AgentHouse** target → **Signing & Capabilities** → choose your own **Team** (a free Apple ID works for local use).
